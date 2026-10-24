@@ -5,7 +5,12 @@ import Testing
 
 @Suite("Offline Vision OCR")
 struct OCRVisionIntegrationTests {
-    @Test("discovers languages supported by accurate local recognition")
+    @Test("interactive OCR uses the responsive local recognition mode")
+    func interactiveRecognitionMode() {
+        #expect(VisionOCRService.makeRequest(settings: OCRSettings()).recognitionLevel == .fast)
+    }
+
+    @Test("discovers languages supported by local recognition")
     func languages() throws {
         let supported = try VisionOCRService().supportedLanguages()
         #expect(supported.contains("en-US"))

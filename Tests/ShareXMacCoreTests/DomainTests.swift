@@ -35,6 +35,13 @@ struct DomainTests {
         #expect(decoded == record)
     }
 
+    @Test("capture record exposes its saved file and containing folder")
+    func captureRecordFileLocations() {
+        let record = CaptureRecord(mode: .region, path: "/Users/tester/Pictures/ShareX/shot.png", width: 1, height: 1)
+        #expect(record.fileURL.path == "/Users/tester/Pictures/ShareX/shot.png")
+        #expect(record.containingFolderURL.path == "/Users/tester/Pictures/ShareX")
+    }
+
     @Test("default settings include every action and OCR default")
     func defaultSettings() {
         let settings = AppSettings()

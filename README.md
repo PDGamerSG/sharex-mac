@@ -1,8 +1,8 @@
 # ShareX Mac
 
-ShareX Mac is an unofficial, local-only native macOS 13+ menu-bar screenshot utility. It keeps the requested ShareX subset: all-display, region, and click-to-select window screenshots; configurable global hotkeys; offline Vision OCR; a screenshot folder; local SQLite history and image history; and focused capture/OCR/settings controls.
+ShareX Mac is an unofficial, local-only native macOS 13+ menu-bar screenshot utility. It keeps the requested ShareX subset: all-display, region, and click-to-select window screenshots; configurable global hotkeys; offline Apple Vision OCR; a screenshot folder; local SQLite history and image history; and focused capture/OCR/settings controls.
 
-It copies each successful screenshot to the clipboard by default; this can be disabled in Capture settings. Full-resolution lossless PNG is the default, with optional 75% and 50% output sizes. A short corner confirmation appears after each saved capture. It deliberately has no screen recording, uploads, workflows, tools/editor, last-region or auto-capture modes, destinations, after-capture tasks, debug/donate/follow/about pages, or network services. See [NOTICE](NOTICE) and [LICENSE](LICENSE) for attribution and licensing.
+It copies each successful screenshot to the clipboard by default; this can be disabled in Capture settings. Full-resolution lossless PNG is the default, with optional 75% and 50% output sizes. A short corner confirmation appears after each saved capture, with an action to open the screenshot’s folder in Finder. It deliberately has no screen recording, uploads, workflows, tools/editor, last-region or auto-capture modes, destinations, after-capture tasks, debug/donate/follow/about pages, or network services. See [NOTICE](NOTICE) and [LICENSE](LICENSE) for attribution and licensing.
 
 The package requires Swift 6 and macOS 13 or newer. Run the test suite with:
 

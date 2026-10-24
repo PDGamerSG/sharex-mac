@@ -19,6 +19,11 @@ public enum OCRError: Error, Equatable, LocalizedError, Sendable {
 }
 
 public final class VisionOCRService: Sendable {
+    /// Interactive OCR must return promptly for the result window. Vision's
+    /// accurate mode can spend close to a minute compiling its model on a
+    /// fresh macOS install, leaving the user with an apparently empty window.
+    public static let interactiveRecognitionLevel: VNRequestTextRecognitionLevel = .fast
+
     public init() {}
 
     public static func supportedLanguages() throws -> [String] {
@@ -43,10 +48,10 @@ public final class VisionOCRService: Sendable {
         try await recognize(image: image, settings: OCRSettings(recognitionScale: scale, languages: language.map { [$0] } ?? []), singleLine: singleLine)
     }
 
-    fileprivate static func makeRequest(settings: OCRSettings) -> VNRecognizeTextRequest {
+    static func makeRequest(settings: OCRSettings) -> VNRecognizeTextRequest {
         let request = VNRecognizeTextRequest()
         request.revision = VNRecognizeTextRequestRevision3
-        request.recognitionLevel = .accurate
+        request.recognitionLevel = Self.interactiveRecognitionLevel
         request.usesLanguageCorrection = settings.usesLanguageCorrection
         request.automaticallyDetectsLanguage = settings.languages.isEmpty
         return request

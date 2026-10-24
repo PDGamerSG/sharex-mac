@@ -2,15 +2,16 @@ import AppKit
 import ShareXMacCore
 
 @MainActor
-final class CaptureConfirmation {
+final class CaptureConfirmation: NSObject {
     private var panel: NSPanel?
     private var displayTask: Task<Void, Never>?
+    private var currentRecord: CaptureRecord?
 
     func show(record: CaptureRecord) {
         displayTask?.cancel()
         panel?.orderOut(nil)
 
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 292, height: 72),
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 76),
                             styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered, defer: false)
         panel.level = .floating
@@ -18,7 +19,7 @@ final class CaptureConfirmation {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hidesOnDeactivate = false
-        panel.ignoresMouseEvents = true
+        panel.ignoresMouseEvents = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         let effect = NSVisualEffectView()
@@ -46,8 +47,16 @@ final class CaptureConfirmation {
         labels.spacing = 2
         labels.translatesAutoresizingMaskIntoConstraints = false
 
+        let openFolder = NSButton(title: "Open Folder", target: self, action: #selector(openFolder(_:)))
+        openFolder.bezelStyle = .rounded
+        openFolder.controlSize = .small
+        openFolder.toolTip = "Open the folder containing this screenshot"
+        openFolder.setAccessibilityLabel("Open screenshot folder")
+        openFolder.translatesAutoresizingMaskIntoConstraints = false
+
         effect.addSubview(icon)
         effect.addSubview(labels)
+        effect.addSubview(openFolder)
         panel.contentView?.addSubview(effect)
         if let content = panel.contentView {
             NSLayoutConstraint.activate([
@@ -60,11 +69,14 @@ final class CaptureConfirmation {
                 icon.widthAnchor.constraint(equalToConstant: 28),
                 icon.heightAnchor.constraint(equalToConstant: 28),
                 labels.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
-                labels.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -14),
-                labels.centerYAnchor.constraint(equalTo: effect.centerYAnchor)
+                labels.trailingAnchor.constraint(lessThanOrEqualTo: openFolder.leadingAnchor, constant: -10),
+                labels.centerYAnchor.constraint(equalTo: effect.centerYAnchor),
+                openFolder.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -12),
+                openFolder.centerYAnchor.constraint(equalTo: effect.centerYAnchor)
             ])
         }
 
+        currentRecord = record
         let screen = NSScreen.main ?? NSScreen.screens.first
         let frame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         panel.setFrameOrigin(NSPoint(x: frame.maxX - panel.frame.width - 18,
@@ -85,5 +97,12 @@ final class CaptureConfirmation {
         displayTask = nil
         panel?.orderOut(nil)
         panel = nil
+        currentRecord = nil
+    }
+
+    @objc private func openFolder(_ sender: NSButton) {
+        guard let record = currentRecord else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([record.fileURL])
+        close()
     }
 }

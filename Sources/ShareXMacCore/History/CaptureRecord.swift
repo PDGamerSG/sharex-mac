@@ -12,6 +12,9 @@ public struct CaptureRecord: Codable, Identifiable, Equatable, Sendable {
     public let captureSettings: CaptureSettings?
     public let displayCount: Int?
 
+    public var fileURL: URL { URL(fileURLWithPath: path) }
+    public var containingFolderURL: URL { fileURL.deletingLastPathComponent() }
+
     public init(id: UUID = UUID(), timestamp: Date = Date(), mode: CaptureMode, path: String, width: Int, height: Int, windowTitle: String? = nil, applicationName: String? = nil, captureSettings: CaptureSettings? = nil, displayCount: Int? = nil) {
         self.id = id
         self.timestamp = timestamp
