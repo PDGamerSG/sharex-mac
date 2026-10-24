@@ -10,6 +10,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "ShareXMacCore"),
+        .executableTarget(name: "ShareXMac", dependencies: ["ShareXMacCore"]),
         .testTarget(name: "ShareXMacCoreTests", dependencies: [
             "ShareXMacCore",
             .product(name: "Testing", package: "swift-testing")
