@@ -52,3 +52,7 @@ Addressed the Task 4 review with the following changes:
 ### Remaining validation limits
 
 Real ScreenCaptureKit capture still needs an interactive Screen Recording permission grant and manual validation on macOS 13 plus a mixed-scale desktop. Automated tests exercise the shared lifecycle using injected drivers and frame status decisions without requesting that permission. The full current-suite rebuild must be repeated after the concurrent Task 6 implementation is available. If ScreenCaptureKit never acknowledges an outstanding start at all, the caller still times out; teardown is retained and runs when that callback arrives, avoiding a stop/start race.
+
+### Final full-suite verification after concurrent Task 6 production files arrived
+
+`swift test --build-system native` rebuilt the current source tree and **all 55 tests passed**, including all 16 Task 4 focused tests and the new coordinator tests (log `/tmp/sharex-task4-full-final.log`). This resolves the transient full-suite compilation limitation noted above. The interactive Screen Recording/macOS 13 hardware validation limits remain.
