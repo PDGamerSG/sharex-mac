@@ -16,6 +16,7 @@ final class AppCoordinator: ObservableObject {
     private let bookmarks = FolderBookmarkStore()
     private let screenCapture = ScreenCaptureService()
     private let countdown = CaptureCountdown()
+    private let confirmation = CaptureConfirmation()
     private var folderHasScope = false
     private var menu: MenuBarController?
     private var captureTask: Task<Void, Never>?
@@ -44,7 +45,9 @@ final class AppCoordinator: ObservableObject {
                 return try CaptureFileWriter().writePNG(image, to: folder, date: date)
             }.value
         },
-        copyToClipboard: { [unowned self] image in copyImageToClipboard(image) })
+        copyToClipboard: { [unowned self] image in copyImageToClipboard(image) },
+        copyFileToClipboard: { [unowned self] url in copyImageFileToClipboard(url) },
+        onSaved: { [unowned self] record in confirmation.show(record: record) })
 
     init() throws {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -77,6 +80,7 @@ final class AppCoordinator: ObservableObject {
     func stop() {
         captureTask?.cancel()
         countdown.close()
+        confirmation.close()
         hotkeys.unregisterAll()
         settingsObservation?.cancel()
         if folderHasScope { folderURL?.stopAccessingSecurityScopedResource() }
@@ -244,6 +248,15 @@ final class AppCoordinator: ObservableObject {
         guard CGImageDestinationFinalize(destination) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setData(data as Data, forType: .png)
+    }
+
+    private func copyImageFileToClipboard(_ url: URL) {
+        // Put the exact bytes that were written on the pasteboard. This keeps
+        // clipboard output identical to the saved PNG and avoids a second
+        // ImageIO encode/decode pass for ScreenCaptureKit frames.
+        guard let data = try? Data(contentsOf: url), !data.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        _ = NSPasteboard.general.setData(data, forType: .png)
     }
 
     private func openOCR(_ record: CaptureRecord) {

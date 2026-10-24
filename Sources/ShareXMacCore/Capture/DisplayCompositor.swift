@@ -29,6 +29,7 @@ public struct DisplayCompositor: Sendable {
         guard let first = displays.first else {
             return Self.emptyImage()
         }
+        if displays.count == 1 { return first.image }
 
         let bounds = displays.dropFirst().reduce(first.frame) { $0.union($1.frame) }
         let outputScale = displays.map(\.scale).max() ?? 1

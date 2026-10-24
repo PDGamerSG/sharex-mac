@@ -1,6 +1,7 @@
 import CoreGraphics
 import CoreImage
 import CoreMedia
+import CoreVideo
 import Foundation
 import ScreenCaptureKit
 
@@ -67,6 +68,9 @@ public final class ScreenCaptureService: Sendable {
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = false
         configuration.showsCursor = showCursor
+        // Use full RGB samples, without video chroma subsampling.
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
+        if #available(macOS 14.0, *) { configuration.captureResolution = .best }
         configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
         configuration.width = max(1, Int(ceil(frame.width * max(scale, 1))))
         configuration.height = max(1, Int(ceil(frame.height * max(scale, 1))))
@@ -163,7 +167,8 @@ private final class ScreenCaptureStreamDriver: NSObject, CaptureStreamDriver, SC
             return
         }
         let image = CIImage(cvPixelBuffer: pixelBuffer)
-        guard let cgImage = context.createCGImage(image, from: image.extent) else {
+        let space = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        guard let cgImage = context.createCGImage(image, from: image.extent, format: .RGBA8, colorSpace: space) else {
             receive?(.failure(ScreenCaptureService.CaptureError.noFrame))
             return
         }

@@ -58,7 +58,18 @@ struct SettingsView: View {
                     LabeledContent("Capture delay", value: "\(model.settings.capture.delaySeconds.formatted()) seconds")
                 }
             } footer: {
-                Text("These options apply to all capture modes. Clipboard copy places the image in the pasteboard after each successful capture. The delay runs before the desktop is frozen.")
+                Text("Screenshots are saved to your folder. Enable clipboard copy to paste them into other apps. The delay runs before the desktop is frozen.")
+            }
+            Section {
+                Picker("Screenshot resolution", selection: setting(\.capture.screenshotResolution)) {
+                    ForEach(ScreenshotResolution.allCases, id: \.self) { resolution in
+                        Text(resolution.title).tag(resolution)
+                    }
+                }
+            } header: {
+                Text("Image quality")
+            } footer: {
+                Text("Full resolution keeps every captured pixel, including Retina detail, in lossless PNG. Reduced sizes scale both width and height for smaller files and clipboard images. OCR captures always use full resolution.")
             }
         }
         .formStyle(.grouped)

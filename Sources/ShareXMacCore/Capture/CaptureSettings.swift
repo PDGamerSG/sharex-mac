@@ -2,6 +2,7 @@ public struct CaptureSettings: Codable, Equatable, Sendable {
     public var showCursor: Bool
     public var delaySeconds: Double
     public var copyToClipboard: Bool
+    public var screenshotResolution: ScreenshotResolution
 
     public var normalizedDelaySeconds: Double {
         min(max(delaySeconds, 0), 60)
@@ -9,16 +10,19 @@ public struct CaptureSettings: Codable, Equatable, Sendable {
 
     public var normalizedDelay: Double { normalizedDelaySeconds }
 
-    public init(showCursor: Bool = false, delaySeconds: Double = 0, copyToClipboard: Bool = true) {
+    public init(showCursor: Bool = false, delaySeconds: Double = 0, copyToClipboard: Bool = true,
+                screenshotResolution: ScreenshotResolution = .full) {
         self.showCursor = showCursor
         self.delaySeconds = delaySeconds
         self.copyToClipboard = copyToClipboard
+        self.screenshotResolution = screenshotResolution
     }
 
     private enum CodingKeys: String, CodingKey {
         case showCursor
         case delaySeconds
         case copyToClipboard
+        case screenshotResolution
     }
 
     public init(from decoder: any Decoder) throws {
@@ -26,7 +30,8 @@ public struct CaptureSettings: Codable, Equatable, Sendable {
         self.init(
             showCursor: try values.decodeIfPresent(Bool.self, forKey: .showCursor) ?? false,
             delaySeconds: try values.decodeIfPresent(Double.self, forKey: .delaySeconds) ?? 0,
-            copyToClipboard: try values.decodeIfPresent(Bool.self, forKey: .copyToClipboard) ?? true
+            copyToClipboard: try values.decodeIfPresent(Bool.self, forKey: .copyToClipboard) ?? true,
+            screenshotResolution: try values.decodeIfPresent(ScreenshotResolution.self, forKey: .screenshotResolution) ?? .full
         )
     }
 
@@ -35,5 +40,6 @@ public struct CaptureSettings: Codable, Equatable, Sendable {
         try values.encode(showCursor, forKey: .showCursor)
         try values.encode(delaySeconds, forKey: .delaySeconds)
         try values.encode(copyToClipboard, forKey: .copyToClipboard)
+        try values.encode(screenshotResolution, forKey: .screenshotResolution)
     }
 }

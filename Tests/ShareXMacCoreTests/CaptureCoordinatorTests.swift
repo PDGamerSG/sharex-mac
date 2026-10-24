@@ -35,6 +35,7 @@ struct CaptureCoordinatorTests {
     @MainActor func copiesEnabledScreenshot() async throws {
         let store = CoordinatorHistory()
         var copiedImage: CGImage?
+        var copiedFile: URL?
         let coordinator = CaptureCoordinator(
             store: store,
             settings: { AppSettings(capture: CaptureSettings(copyToClipboard: true)) },
@@ -42,12 +43,14 @@ struct CaptureCoordinatorTests {
             delay: { _ in },
             takeImage: { _, _ in CapturedImage(image: Self.image()) },
             writeImage: { _, _ in URL(fileURLWithPath: "/tmp/copied.png") },
-            copyToClipboard: { image in copiedImage = image }
+            copyToClipboard: { image in copiedImage = image },
+            copyFileToClipboard: { url in copiedFile = url }
         )
 
         _ = await coordinator.capture(.fullscreen)
 
         #expect(copiedImage != nil)
+        #expect(copiedFile?.path == "/tmp/copied.png")
     }
 
     @Test("does not copy screenshots when the capture setting is disabled")
@@ -72,22 +75,27 @@ struct CaptureCoordinatorTests {
     @Test("write failures never create a history record")
     @MainActor func writeFailure() async {
         let store = CoordinatorHistory()
+        var confirmations = 0
         let coordinator = CaptureCoordinator(store: store, settings: { AppSettings() }, hasPermission: { true },
             delay: { _ in }, takeImage: { _, _ in CapturedImage(image: Self.image()) },
-            writeImage: { _, _ in throw TestFailure.write })
+            writeImage: { _, _ in throw TestFailure.write }, onSaved: { _ in confirmations += 1 })
         if case .success = await coordinator.capture(.fullscreen) { Issue.record("Write failure reported success") }
         #expect(await store.list(search: nil).isEmpty)
         #expect(!coordinator.isCapturing)
+        #expect(confirmations == 0)
     }
 
     @Test("cancelled selections neither write images nor record history")
     @MainActor func selectionCancellation() async {
         let store = CoordinatorHistory()
         var wrote = false
+        var confirmations = 0
         let coordinator = CaptureCoordinator(store: store, settings: { AppSettings() }, hasPermission: { true },
-            delay: { _ in }, takeImage: { _, _ in nil }, writeImage: { _, _ in wrote = true; return URL(fileURLWithPath: "/tmp/no.png") })
+            delay: { _ in }, takeImage: { _, _ in nil }, writeImage: { _, _ in wrote = true; return URL(fileURLWithPath: "/tmp/no.png") },
+            onSaved: { _ in confirmations += 1 })
         if case .failure(.cancelled) = await coordinator.capture(.region) {} else { Issue.record("Expected cancellation") }
         #expect(!wrote)
+        #expect(confirmations == 0)
         #expect(await store.list(search: nil).isEmpty)
     }
 
@@ -113,12 +121,42 @@ struct CaptureCoordinatorTests {
 
     @Test("history failure preserves a useful path to the saved screenshot")
     @MainActor func historyFailure() async {
+        var savedPath: String?
         let coordinator = CaptureCoordinator(store: CoordinatorHistory(failsInsert: true), settings: { AppSettings() }, hasPermission: { true },
             delay: { _ in }, takeImage: { _, _ in CapturedImage(image: Self.image()) },
-            writeImage: { _, _ in URL(fileURLWithPath: "/tmp/saved.png") })
+            writeImage: { _, _ in URL(fileURLWithPath: "/tmp/saved.png") }, onSaved: { savedPath = $0.path })
         if case .failure(.historyFailed(let path, _)) = await coordinator.capture(.fullscreen) {
             #expect(path == "/tmp/saved.png")
         } else { Issue.record("Expected a saved-file history error") }
+        #expect(savedPath == "/tmp/saved.png")
+    }
+
+    @Test("all screenshot modes share output size across file, clipboard, confirmation and history",
+          arguments: [CaptureMode.fullscreen, .region, .window, .ocrRegion])
+    @MainActor func outputSize(_ mode: CaptureMode) async throws {
+        let source = Self.image()
+        let store = CoordinatorHistory()
+        var written: CGImage?
+        var copied: CGImage?
+        var confirmations: [CaptureRecord] = []
+        let coordinator = CaptureCoordinator(store: store,
+            settings: { AppSettings(capture: CaptureSettings(screenshotResolution: .half)) },
+            hasPermission: { true }, delay: { _ in }, takeImage: { _, _ in CapturedImage(image: source) },
+            writeImage: { image, _ in written = image; return URL(fileURLWithPath: "/tmp/output.png") },
+            copyToClipboard: { copied = $0 }, onSaved: { record in
+                #expect(written != nil)
+                confirmations.append(record)
+            })
+        let record = try await coordinator.capture(mode).get()
+        let expectedSize = mode == .ocrRegion ? 2 : 1
+        #expect(written?.width == expectedSize)
+        #expect(written?.height == expectedSize)
+        #expect(copied === written)
+        #expect(record.width == expectedSize && record.height == expectedSize)
+        #expect(record.captureSettings?.screenshotResolution == (mode == .ocrRegion ? .full : .half))
+        #expect(confirmations == [record])
+        #expect(await store.list(search: nil).first?.record == record)
+        if mode == .ocrRegion { #expect(written === source) }
     }
 
     private static func image() -> CGImage {

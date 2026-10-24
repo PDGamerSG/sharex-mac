@@ -10,6 +10,8 @@ Automated tests cover the core models, SQLite migration, compositor, writer, cap
 | Full screen | Connect two displays with different scales and negative origins; invoke full-screen capture | One PNG contains every display in the correct arrangement and pixel scale |
 | Cursor/delay | Enable cursor and use 0, 1, and 60 second delays; press Escape during countdown | Cursor setting is reflected; countdown is cancellable; history stores cursor/delay metadata |
 | Clipboard | Capture full screen, a region, and a window with clipboard copy enabled; paste into an image-capable app; disable the setting and repeat | The captured PNG is pasted automatically when enabled; disabling the setting leaves the existing pasteboard unchanged |
+| Confirmation | Capture a full screen, region, and window | A non-interactive “Screenshot taken” confirmation appears in the bottom-right corner for about three seconds after the PNG is saved |
+| Quality | Capture at Full resolution, then repeat at 75% and 50% | Full resolution preserves captured pixel dimensions and lossless PNG output; reduced settings scale the saved and clipboard image dimensions; OCR remains full resolution |
 | Region | Drag on each display, including a cross-display area; press Escape | Frozen desktop is shown; crop maps to the saved image; Escape creates no file or row |
 | Window | Invoke window capture and click a visible app window on each display | Picker highlights windows, excludes ShareX Mac, and saves the selected window with title/application metadata |
 | OCR | Invoke OCR region capture and run OCR from image history; edit and copy text | Vision recognizes offline, preserves reading order, supports single-line output, and Copy puts editable text on the pasteboard |

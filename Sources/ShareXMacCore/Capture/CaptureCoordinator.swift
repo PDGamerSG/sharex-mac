@@ -41,6 +41,8 @@ public final class CaptureCoordinator {
     private let takeImage: @MainActor (CaptureMode, CaptureSettings) async throws -> CapturedImage?
     private let writeImage: @MainActor (CGImage, Date) async throws -> URL
     private let copyToClipboard: @MainActor (CGImage) -> Void
+    private let copyFileToClipboard: @MainActor (URL) -> Void
+    private let onSaved: @MainActor (CaptureRecord) -> Void
     private let now: () -> Date
 
     public init(store: any ScreenshotStore, settings: @escaping () -> AppSettings,
@@ -48,7 +50,9 @@ public final class CaptureCoordinator {
                 takeImage: @escaping @MainActor (CaptureMode, CaptureSettings) async throws -> CapturedImage?,
                 writeImage: @escaping @MainActor (CGImage, Date) async throws -> URL,
                 now: @escaping () -> Date = Date.init,
-                copyToClipboard: @escaping @MainActor (CGImage) -> Void = { _ in }) {
+                copyToClipboard: @escaping @MainActor (CGImage) -> Void = { _ in },
+                copyFileToClipboard: @escaping @MainActor (URL) -> Void = { _ in },
+                onSaved: @escaping @MainActor (CaptureRecord) -> Void = { _ in }) {
         self.store = store
         self.settings = settings
         self.hasPermission = hasPermission
@@ -56,6 +60,8 @@ public final class CaptureCoordinator {
         self.takeImage = takeImage
         self.writeImage = writeImage
         self.copyToClipboard = copyToClipboard
+        self.copyFileToClipboard = copyFileToClipboard
+        self.onSaved = onSaved
         self.now = now
     }
 
@@ -68,19 +74,35 @@ public final class CaptureCoordinator {
             try Task.checkCancellation()
             var options = settings().capture
             options.delaySeconds = options.normalizedDelaySeconds
+            // OCR needs the original text detail, regardless of the output
+            // preference used for ordinary screenshots.
+            if mode == .ocrRegion { options.screenshotResolution = .full }
             try await delay(options.normalizedDelaySeconds)
             try Task.checkCancellation()
             guard let capture = try await takeImage(mode, options) else { return .failure(.cancelled) }
             try Task.checkCancellation()
+            let resolution = options.screenshotResolution
+            let image = try await Task.detached(priority: .userInitiated) {
+                try resolution.prepare(capture.image)
+            }.value
+            try Task.checkCancellation()
             let date = now()
-            let url = try await writeImage(capture.image, date)
-            if options.copyToClipboard { copyToClipboard(capture.image) }
+            let url = try await writeImage(image, date)
+            if options.copyToClipboard {
+                copyToClipboard(image)
+                // The file is the canonical output. This fallback also handles
+                // ScreenCaptureKit images whose in-memory representation cannot
+                // be encoded directly by ImageIO on some macOS releases.
+                copyFileToClipboard(url)
+            }
             // Once written, finish recording metadata even if cancellation is
             // requested. Never create a row before a successful atomic write.
             let record = CaptureRecord(timestamp: date, mode: mode, path: url.path,
-                                       width: capture.image.width, height: capture.image.height,
+                                       width: image.width, height: image.height,
                                        windowTitle: capture.windowTitle, applicationName: capture.applicationName,
                                        captureSettings: options, displayCount: capture.displayCount)
+            // A saved file deserves confirmation even if history later fails.
+            onSaved(record)
             do { try await store.insert(record) }
             catch { return .failure(.historyFailed(path: url.path, reason: error.localizedDescription)) }
             return .success(record)
