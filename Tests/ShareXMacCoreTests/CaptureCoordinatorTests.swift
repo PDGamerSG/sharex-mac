@@ -49,7 +49,7 @@ struct CaptureCoordinatorTests {
 
         _ = await coordinator.capture(.fullscreen)
 
-        #expect(copiedImage != nil)
+        #expect(copiedImage == nil)
         #expect(copiedFile?.path == "/tmp/copied.png")
     }
 
@@ -137,13 +137,13 @@ struct CaptureCoordinatorTests {
         let source = Self.image()
         let store = CoordinatorHistory()
         var written: CGImage?
-        var copied: CGImage?
+        var copiedFile: URL?
         var confirmations: [CaptureRecord] = []
         let coordinator = CaptureCoordinator(store: store,
             settings: { AppSettings(capture: CaptureSettings(screenshotResolution: .half)) },
             hasPermission: { true }, delay: { _ in }, takeImage: { _, _ in CapturedImage(image: source) },
             writeImage: { image, _ in written = image; return URL(fileURLWithPath: "/tmp/output.png") },
-            copyToClipboard: { copied = $0 }, onSaved: { record in
+            copyFileToClipboard: { copiedFile = $0 }, onSaved: { record in
                 #expect(written != nil)
                 confirmations.append(record)
             })
@@ -151,7 +151,7 @@ struct CaptureCoordinatorTests {
         let expectedSize = mode == .ocrRegion ? 2 : 1
         #expect(written?.width == expectedSize)
         #expect(written?.height == expectedSize)
-        #expect(copied === written)
+        #expect(copiedFile?.path == "/tmp/output.png")
         #expect(record.width == expectedSize && record.height == expectedSize)
         #expect(record.captureSettings?.screenshotResolution == (mode == .ocrRegion ? .full : .half))
         #expect(confirmations == [record])

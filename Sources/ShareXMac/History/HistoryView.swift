@@ -1,7 +1,7 @@
 import SwiftUI
 import ShareXMacCore
 
-enum HistoryAction { case preview, open, reveal, copyPath, ocr }
+enum HistoryAction { case preview, open, reveal, copyPath, copyImage, ocr }
 
 struct HistoryView: View {
     @ObservedObject var model: HistoryViewModel
@@ -73,6 +73,10 @@ struct HistoryContentView: View {
                 Button("Preview") { perform(.preview) }
                     .disabled(selectedEntry == nil || selectedEntry?.isMissing == true)
                     .keyboardShortcut(.space, modifiers: [])
+                Button("Copy Image") { perform(.copyImage) }
+                    .disabled(selectedEntry == nil || selectedEntry?.isMissing == true)
+                    .accessibilityLabel("Copy Image")
+                    .help("Copy the selected PNG image to the clipboard")
                 Menu("Actions") {
                     if let entry = selectedEntry { HistoryActions(entry: entry, model: model, onAction: onAction) }
                 }
@@ -200,6 +204,8 @@ private struct HistoryActions: View {
             Button("Recognize Text…") { onAction(.ocr, entry) }
         }
         .disabled(entry.isMissing)
+        Button("Copy Image") { onAction(.copyImage, entry) }
+            .accessibilityLabel("Copy Image")
         Button("Copy Path") { onAction(.copyPath, entry) }
         Divider()
         Button("Delete…", role: .destructive) { model.requestDelete(entry) }

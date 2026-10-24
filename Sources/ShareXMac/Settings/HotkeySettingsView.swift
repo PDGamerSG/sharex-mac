@@ -22,7 +22,7 @@ struct HotkeySettingsView: View {
                 }
             }
             Section("App navigation") {
-                ForEach([HotkeyAction.history, .imageHistory, .settings], id: \.self) { action in
+                ForEach([HotkeyAction.imageHistory, .settings], id: \.self) { action in
                     shortcutRow(for: action)
                 }
             }

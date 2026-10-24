@@ -48,6 +48,7 @@ struct HistoryThumbnail: View {
 /// and decoding off MainActor and serializes work when many cells appear.
 private actor HistoryThumbnailCache {
     static let shared = HistoryThumbnailCache()
+    private let capacity = 48
     private var images: [String: CGImage] = [:]
     private var insertionOrder: [String] = []
 
@@ -64,7 +65,7 @@ private actor HistoryThumbnailCache {
                 kCGImageSourceThumbnailMaxPixelSize: 384,
                 kCGImageSourceShouldCacheImmediately: true
               ] as CFDictionary) else { return nil }
-        if insertionOrder.count >= 100 { images.removeValue(forKey: insertionOrder.removeFirst()) }
+        if insertionOrder.count >= capacity { images.removeValue(forKey: insertionOrder.removeFirst()) }
         images[key] = image
         insertionOrder.append(key)
         return image

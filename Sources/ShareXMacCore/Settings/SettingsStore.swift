@@ -27,13 +27,16 @@ public final class SettingsStore: @unchecked Sendable {
 
     public func load() -> AppSettings {
         guard let data = try? Data(contentsOf: fileURL),
-              let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+              var settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
             return AppSettings()
         }
+        settings.hotkeys.removeValue(forKey: .history)
         return settings
     }
 
     public func save(_ settings: AppSettings) throws {
+        var settings = settings
+        settings.hotkeys.removeValue(forKey: .history)
         let data = try JSONEncoder().encode(settings)
         let directory = fileURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

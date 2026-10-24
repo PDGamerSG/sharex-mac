@@ -87,7 +87,7 @@ struct SettingsView: View {
                 }
                 Button("Choose Folder…", action: chooseFolder)
             }
-            Section("Local history database") {
+            Section("Image history database") {
                 Text(databasePath).textSelection(.enabled)
                 Label(FileManager.default.fileExists(atPath: databasePath) ? "Database is available" : "Database is unavailable", systemImage: FileManager.default.fileExists(atPath: databasePath) ? "checkmark.circle" : "exclamationmark.triangle")
                     .foregroundStyle(.secondary)

@@ -21,9 +21,9 @@ struct DomainTests {
         #expect(HotkeyAction.region.rawValue == "region")
         #expect(HotkeyAction.window.rawValue == "window")
         #expect(HotkeyAction.ocrRegion.rawValue == "ocrRegion")
-        #expect(HotkeyAction.history.rawValue == "history")
         #expect(HotkeyAction.imageHistory.rawValue == "imageHistory")
         #expect(HotkeyAction.settings.rawValue == "settings")
+        #expect(!HotkeyAction.allCases.contains(.history))
     }
 
     @Test("capture record Codable round trip")

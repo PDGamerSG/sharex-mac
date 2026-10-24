@@ -23,7 +23,6 @@ final class MenuBarController: NSObject {
         menu.addItem(.separator())
         add("Recognize Text in Region…", action: .ocrRegion, to: menu, capture: true)
         menu.addItem(.separator())
-        add("History…", action: .history, to: menu)
         add("Image History…", action: .imageHistory, to: menu)
         menu.addItem(.separator())
         add("Settings…", action: .settings, to: menu)

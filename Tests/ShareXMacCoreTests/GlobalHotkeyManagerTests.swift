@@ -51,10 +51,10 @@ import Testing
         try manager.register([.settings: HotkeyBinding(keyCode: 15, modifierFlags: 2304)])
         #expect(manager.registrationErrors.isEmpty)
         registrar.onHotkey?(1)
-        registrar.onHotkey?(7)
+        registrar.onHotkey?(6)
         #expect(actions == [.settings])
         try manager.register(AppSettings.defaultHotkeys)
-        registrar.onHotkey?(7)
+        registrar.onHotkey?(6)
         #expect(actions == [.settings])
         #expect(registrar.activeIDs.isEmpty)
     }
@@ -68,8 +68,8 @@ import Testing
         let binding = HotkeyBinding(keyCode: 80, modifierFlags: 6912)
         try first.register([.settings: binding])
         #expect(first.registrationErrors.isEmpty)
-        try second.register([.history: binding])
-        #expect(second.registrationErrors[.history] != nil)
+        try second.register([.imageHistory: binding])
+        #expect(second.registrationErrors[.imageHistory] != nil)
         second.unregisterAll()
 
         var event: EventRef?
@@ -77,13 +77,13 @@ import Testing
                             GetCurrentEventTime(), 0, &event) == noErr)
         let created = try #require(event)
         defer { ReleaseEvent(created) }
-        var identity = EventHotKeyID(signature: 0x53784D63, id: 7)
+        var identity = EventHotKeyID(signature: 0x53784D63, id: 6)
         #expect(SetEventParameter(created, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                                   MemoryLayout<EventHotKeyID>.size, &identity) == noErr)
         #expect(SendEventToEventTarget(created, GetApplicationEventTarget()) == noErr)
         #expect(actions == [.settings])
         first.unregisterAll()
-        try second.register([.history: binding])
+        try second.register([.imageHistory: binding])
         #expect(second.registrationErrors.isEmpty)
     }
 

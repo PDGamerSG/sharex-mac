@@ -34,6 +34,19 @@ struct SettingsStoreTests {
         #expect(decoded.capture.copyToClipboard)
     }
 
+    @Test("legacy history shortcut is removed when settings are loaded")
+    func legacyHistoryShortcutIsMigratedAway() throws {
+        let directory = try TemporaryDirectory()
+        let fileURL = directory.url.appendingPathComponent("settings.json")
+        let data = Data(#"{"capture":{"showCursor":false,"delaySeconds":0},"ocr":{"recognitionScale":1,"languages":[],"usesLanguageCorrection":true},"screenshotFolderBookmark":null,"hotkeys":["history",{"modifierFlags":2048,"keyCode":20},"imageHistory",{"modifierFlags":2048,"keyCode":21}]}"#.utf8)
+        try data.write(to: fileURL)
+
+        let settings = SettingsStore(fileURL: fileURL).load()
+
+        #expect(settings.hotkeys[.history] == nil)
+        #expect(settings.hotkeys[.imageHistory]?.keyCode == 21)
+    }
+
     @Test("overwriting existing settings preserves the replacement on reload")
     func overwriteSettingsReload() throws {
         let directory = try TemporaryDirectory()

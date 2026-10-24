@@ -8,7 +8,6 @@ import SwiftUI
 @MainActor
 final class AppCoordinator: ObservableObject {
     let settingsModel: SettingsViewModel
-    let historyModel: HistoryViewModel
     let imageHistoryModel: HistoryViewModel
     let databaseURL: URL
     @Published private(set) var folderURL: URL?
@@ -21,7 +20,6 @@ final class AppCoordinator: ObservableObject {
     private var menu: MenuBarController?
     private var captureTask: Task<Void, Never>?
     private var settingsObservation: AnyCancellable?
-    private var historyWindow: AppWindow?
     private var imageHistoryWindow: AppWindow?
     private var settingsWindow: AppWindow?
     private var previewWindows: [AppWindow] = []
@@ -45,7 +43,6 @@ final class AppCoordinator: ObservableObject {
                 return try CaptureFileWriter().writePNG(image, to: folder, date: date)
             }.value
         },
-        copyToClipboard: { [unowned self] image in copyImageToClipboard(image) },
         copyFileToClipboard: { [unowned self] url in copyImageFileToClipboard(url) },
         onSaved: { [unowned self] record in confirmation.show(record: record) })
 
@@ -55,7 +52,6 @@ final class AppCoordinator: ObservableObject {
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         databaseURL = support.appendingPathComponent("history.sqlite")
         store = try SQLiteScreenshotStore(databaseURL: databaseURL)
-        historyModel = HistoryViewModel(store: store)
         imageHistoryModel = HistoryViewModel(store: store)
         let settings = SettingsStore()
         settingsModel = SettingsViewModel(settings: settings.load(), save: settings.save)
@@ -93,8 +89,8 @@ final class AppCoordinator: ObservableObject {
         case .region: beginCapture(.region)
         case .window: beginCapture(.window)
         case .ocrRegion: beginCapture(.ocrRegion)
-        case .history: showHistory(images: false)
-        case .imageHistory: showHistory(images: true)
+        case .history: break // Legacy settings can decode this value, but it is no longer registered.
+        case .imageHistory: showImageHistory()
         case .settings: showSettings()
         }
     }
@@ -193,25 +189,16 @@ final class AppCoordinator: ObservableObject {
         folderHasScope = accessed
     }
 
-    private func showHistory(images: Bool) {
-        if images {
-            if imageHistoryWindow == nil {
-                imageHistoryWindow = AppWindow(title: "Image History", size: NSSize(width: 960, height: 680),
-                    content: ImageHistoryView(model: imageHistoryModel, onAction: { [weak self] in self?.historyAction($0, entry: $1) }))
-            }
-            imageHistoryWindow?.present()
-        } else {
-            if historyWindow == nil {
-                historyWindow = AppWindow(title: "History", size: NSSize(width: 960, height: 640),
-                    content: HistoryView(model: historyModel, onAction: { [weak self] in self?.historyAction($0, entry: $1) }))
-            }
-            historyWindow?.present()
+    private func showImageHistory() {
+        if imageHistoryWindow == nil {
+            imageHistoryWindow = AppWindow(title: "Image History", size: NSSize(width: 960, height: 680),
+                content: ImageHistoryView(model: imageHistoryModel, onAction: { [weak self] in self?.historyAction($0, entry: $1) }))
         }
+        imageHistoryWindow?.present()
         Task { await refreshHistory() }
     }
 
     private func refreshHistory() async {
-        await historyModel.refresh()
         await imageHistoryModel.refresh()
     }
 
@@ -229,6 +216,8 @@ final class AppCoordinator: ObservableObject {
         case .copyPath:
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(url.path, forType: .string)
+        case .copyImage:
+            copyImageFileToClipboard(url)
         case .reveal: NSWorkspace.shared.activateFileViewerSelecting([url])
         case .open:
             if !NSWorkspace.shared.open(url) { showError("Image could not be opened", error: AppError.imageUnavailable) }
@@ -241,22 +230,16 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    private func copyImageToClipboard(_ image: CGImage) {
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil) else { return }
-        CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setData(data as Data, forType: .png)
-    }
-
     private func copyImageFileToClipboard(_ url: URL) {
-        // Put the exact bytes that were written on the pasteboard. This keeps
-        // clipboard output identical to the saved PNG and avoids a second
-        // ImageIO encode/decode pass for ScreenCaptureKit frames.
-        guard let data = try? Data(contentsOf: url), !data.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        _ = NSPasteboard.general.setData(data, forType: .png)
+        // Read the canonical PNG off the main actor, then publish it on the
+        // main actor. Large Retina captures must not block menu-bar updates.
+        Task.detached(priority: .utility) {
+            guard let data = try? Data(contentsOf: url), !data.isEmpty else { return }
+            await MainActor.run {
+                NSPasteboard.general.clearContents()
+                _ = NSPasteboard.general.setData(data, forType: .png)
+            }
+        }
     }
 
     private func openOCR(_ record: CaptureRecord) {
@@ -316,7 +299,7 @@ private enum AppError: Error, LocalizedError {
         case .folderUnavailable: return "The saved folder is missing or cannot be accessed. Choose a writable screenshot folder in Settings."
         case .displaysChanged: return "The display arrangement changed during capture. Start the screenshot again."
         case .emptyRegion: return "The selected region has no pixels. Try selecting a larger area."
-        case .imageUnavailable: return "The image is missing or could not be read. Check its location in History."
+        case .imageUnavailable: return "The image is missing or could not be read. Check its location in Image History."
         case .settings(let message): return message
         }
     }

@@ -89,10 +89,9 @@ public final class CaptureCoordinator {
             let date = now()
             let url = try await writeImage(image, date)
             if options.copyToClipboard {
-                copyToClipboard(image)
-                // The file is the canonical output. This fallback also handles
-                // ScreenCaptureKit images whose in-memory representation cannot
-                // be encoded directly by ImageIO on some macOS releases.
+                // Copy the canonical PNG once. Avoiding a second ImageIO encode
+                // keeps capture CPU, memory, and energy use low while preserving
+                // the exact bytes written to disk.
                 copyFileToClipboard(url)
             }
             // Once written, finish recording metadata even if cancellation is
