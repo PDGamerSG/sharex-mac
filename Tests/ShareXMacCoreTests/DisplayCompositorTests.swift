@@ -18,8 +18,49 @@ struct DisplayCompositorTests {
 
         #expect(result.width == 12)
         #expect(result.height == 4)
-        #expect(pixel(result, x: 0, y: 0).red > 0.9)
+        #expect(pixel(result, x: 0, y: 2).red > 0.9)
+        #expect(pixel(result, x: 1, y: 3).red > 0.9)
+        #expect(pixel(result, x: 3, y: 3).red > 0.9)
+        #expect(pixel(result, x: 6, y: 1).green > 0.9)
+        #expect(pixel(result, x: 10, y: 2).green > 0.9)
         #expect(pixel(result, x: 4, y: 3).green > 0.9)
+    }
+
+    @Test("gaps remain transparent while lower scale displays are upsampled")
+    func gapsAndUpsampling() throws {
+        let left = try image(width: 4, height: 2, color: (1, 0, 0, 1))
+        let right = try image(width: 2, height: 1, color: (0, 0, 1, 1))
+        let captures = [
+            DisplayCompositor.DisplayCapture(image: left, frame: CGRect(x: -2, y: 0, width: 2, height: 1), scale: 2),
+            DisplayCompositor.DisplayCapture(image: right, frame: CGRect(x: 2, y: 1, width: 2, height: 1), scale: 1)
+        ]
+
+        let result = DisplayCompositor().composite(captures)
+
+        #expect(result.width == 12)
+        #expect(result.height == 4)
+        #expect(pixel(result, x: 1, y: 0).red > 0.9)
+        #expect(pixel(result, x: 9, y: 3).blue > 0.9)
+        #expect(pixel(result, x: 5, y: 1).alpha < 0.01)
+    }
+
+    @Test("a labeled image keeps its internal top and bottom rows")
+    func sourceOrientation() throws {
+        let bytes = Data([255, 0, 0, 255, 0, 255, 0, 255,
+                          0, 0, 255, 255, 255, 255, 0, 255])
+        let pattern = CGImage(width: 2, height: 2, bitsPerComponent: 8, bitsPerPixel: 32,
+                              bytesPerRow: 8, space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+                              provider: CGDataProvider(data: bytes as CFData)!, decode: nil,
+                              shouldInterpolate: false, intent: .defaultIntent)!
+        let result = DisplayCompositor().composite([
+            .init(image: pattern, frame: CGRect(x: -2, y: -3, width: 2, height: 2), scale: 1)
+        ])
+        #expect(pixel(result, x: 0, y: 0).red > 0.9)
+        #expect(pixel(result, x: 1, y: 0).green > 0.9)
+        #expect(pixel(result, x: 0, y: 1).blue > 0.9)
+        #expect(pixel(result, x: 1, y: 1).red > 0.9)
+        #expect(pixel(result, x: 1, y: 1).green > 0.9)
     }
 
     private func image(width: Int, height: Int, color: (CGFloat, CGFloat, CGFloat, CGFloat)) throws -> CGImage {

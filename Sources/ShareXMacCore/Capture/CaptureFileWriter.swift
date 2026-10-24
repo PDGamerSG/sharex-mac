@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import Darwin
 import ImageIO
 import UniformTypeIdentifiers
 
@@ -16,7 +17,45 @@ public struct CaptureFileWriter: Sendable {
         }
     }
 
-    public init() {}
+    private let makeDirectory: @Sendable (URL) throws -> Void
+    private let encodePNG: @Sendable (CGImage, URL) throws -> Void
+    private let moveItem: @Sendable (URL, URL) throws -> Void
+    private let removeItem: @Sendable (URL) -> Void
+
+    public init() {
+        self.init(
+            makeDirectory: { directory in
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            },
+            encodePNG: { image, url in
+                guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+                    throw WriterError.unableToCreateTemporaryFile
+                }
+                CGImageDestinationAddImage(destination, image, nil)
+                guard CGImageDestinationFinalize(destination) else {
+                    throw WriterError.unableToEncodePNG
+                }
+            },
+            moveItem: { source, destination in
+                try Self.moveExclusively(source, destination)
+            },
+            removeItem: { url in
+                try? FileManager.default.removeItem(at: url)
+            }
+        )
+    }
+
+    init(
+        makeDirectory: @escaping @Sendable (URL) throws -> Void,
+        encodePNG: @escaping @Sendable (CGImage, URL) throws -> Void,
+        moveItem: @escaping @Sendable (URL, URL) throws -> Void,
+        removeItem: @escaping @Sendable (URL) -> Void
+    ) {
+        self.makeDirectory = makeDirectory
+        self.encodePNG = encodePNG
+        self.moveItem = moveItem
+        self.removeItem = removeItem
+    }
 
     @discardableResult
     public static func writePNG(_ image: CGImage, to directory: URL, date: Date = Date()) throws -> URL {
@@ -25,46 +64,44 @@ public struct CaptureFileWriter: Sendable {
 
     @discardableResult
     public func writePNG(_ image: CGImage, to directory: URL, date: Date = Date()) throws -> URL {
-        let fileManager = FileManager.default
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try makeDirectory(directory)
         let stem = Self.dateFormatter.string(from: date)
         let temporary = directory.appendingPathComponent(".ShareX_\(UUID().uuidString).tmp")
-        guard let destination = CGImageDestinationCreateWithURL(temporary as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-            throw WriterError.unableToCreateTemporaryFile
-        }
-        CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else {
-            try? fileManager.removeItem(at: temporary)
-            throw WriterError.unableToEncodePNG
-        }
+        defer { removeItem(temporary) }
+        try encodePNG(image, temporary)
 
-        defer { try? fileManager.removeItem(at: temporary) }
         var suffix = 0
         while true {
             let filename = suffix == 0 ? "ShareX_\(stem).png" : "ShareX_\(stem)_\(suffix).png"
             let target = directory.appendingPathComponent(filename)
             do {
-                // FileManager's move is an atomic rename on the same volume and
-                // refuses to replace an existing destination.
-                try fileManager.moveItem(at: temporary, to: target)
+                // RENAME_EXCL atomically publishes the complete PNG without
+                // replacing a winner from this or another process.
+                try moveItem(temporary, target)
                 return target
-            } catch {
-                // A concurrent writer may win the race after the destination
-                // check; only treat that case as a collision.
-                if fileManager.fileExists(atPath: target.path) {
-                    suffix += 1
-                } else {
-                    throw error
-                }
+            } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EEXIST) {
+                suffix += 1
             }
         }
     }
 
-    private static let dateFormatter: DateFormatter = {
+    private static var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         return formatter
-    }()
+    }
+
+    static func moveExclusively(_ source: URL, _ destination: URL) throws {
+        let (status, errorNumber) = source.withUnsafeFileSystemRepresentation { sourcePath in
+            destination.withUnsafeFileSystemRepresentation { destinationPath in
+                let status = renamex_np(sourcePath!, destinationPath!, UInt32(RENAME_EXCL))
+                return (status, errno)
+            }
+        }
+        guard status == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errorNumber))
+        }
+    }
 }

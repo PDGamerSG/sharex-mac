@@ -46,7 +46,7 @@ public struct DisplayCompositor: Sendable {
 
         for display in displays {
             let destination = CGRect(x: (display.frame.minX - bounds.minX) * outputScale,
-                                     y: (display.frame.minY - bounds.minY) * outputScale,
+                                     y: (bounds.maxY - display.frame.maxY) * outputScale,
                                      width: display.frame.width * outputScale,
                                      height: display.frame.height * outputScale)
             context.draw(display.image, in: destination)
