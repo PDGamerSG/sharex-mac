@@ -43,7 +43,8 @@ final class AppCoordinator: ObservableObject {
                 defer { if accessed { folder.stopAccessingSecurityScopedResource() } }
                 return try CaptureFileWriter().writePNG(image, to: folder, date: date)
             }.value
-        })
+        },
+        copyToClipboard: { [unowned self] image in copyImageToClipboard(image) })
 
     init() throws {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -59,9 +60,11 @@ final class AppCoordinator: ObservableObject {
 
     func start() {
         menu = MenuBarController(onAction: { [weak self] in self?.perform($0) })
+        menu?.updateShortcuts(settingsModel.settings.hotkeys)
         restoreFolder()
         settingsObservation = settingsModel.$settings.sink { [weak self] updated in
             guard let self else { return }
+            self.menu?.updateShortcuts(updated.hotkeys)
             do { try self.hotkeys.register(updated.hotkeys) }
             catch { self.showError("Shortcuts could not be updated", error: error) }
         }
@@ -232,6 +235,15 @@ final class AppCoordinator: ObservableObject {
             previewWindows.append(window)
             window.present()
         }
+    }
+
+    private func copyImageToClipboard(_ image: CGImage) {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setData(data as Data, forType: .png)
     }
 
     private func openOCR(_ record: CaptureRecord) {

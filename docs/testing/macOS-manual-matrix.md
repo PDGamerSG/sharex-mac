@@ -9,11 +9,12 @@ Automated tests cover the core models, SQLite migration, compositor, writer, cap
 | Folder | First launch and a stale/moved bookmark | Folder picker suggests `~/Pictures/ShareX`; a security-scoped bookmark is saved and refreshed; cancellation leaves capture unavailable |
 | Full screen | Connect two displays with different scales and negative origins; invoke full-screen capture | One PNG contains every display in the correct arrangement and pixel scale |
 | Cursor/delay | Enable cursor and use 0, 1, and 60 second delays; press Escape during countdown | Cursor setting is reflected; countdown is cancellable; history stores cursor/delay metadata |
+| Clipboard | Capture full screen, a region, and a window with clipboard copy enabled; paste into an image-capable app; disable the setting and repeat | The captured PNG is pasted automatically when enabled; disabling the setting leaves the existing pasteboard unchanged |
 | Region | Drag on each display, including a cross-display area; press Escape | Frozen desktop is shown; crop maps to the saved image; Escape creates no file or row |
 | Window | Invoke window capture and click a visible app window on each display | Picker highlights windows, excludes ShareX Mac, and saves the selected window with title/application metadata |
 | OCR | Invoke OCR region capture and run OCR from image history; edit and copy text | Vision recognizes offline, preserves reading order, supports single-line output, and Copy puts editable text on the pasteboard |
 | History | Search, preview, open, reveal, copy path, OCR, delete, and remove a file externally | List and thumbnail grid share the same rows; missing files remain visible; delete confirmation is required |
-| Hotkeys | Record all seven actions, duplicate a combination, clear/reset, restart, and press shortcuts globally | Valid bindings persist and dispatch; duplicate/conflicting bindings report the action; clear/reset releases Carbon handles |
+| Hotkeys | Record all seven actions, duplicate a combination, clear/reset, restart, and press shortcuts globally | Valid bindings persist and dispatch; duplicate/conflicting bindings report the action; clear/reset releases Carbon handles; configured shortcuts are shown beside menu-bar actions and the Hotkeys tab is grouped into Capture and App navigation |
 | Settings | Toggle cursor/delay/OCR language/scale/correction, launch-at-login, and start hidden | Values persist across restart; unsupported permission/login states show the provided guidance |
 | Scope audit | Inspect menu and Settings | No recording, upload, workflow, tools/editor, last-region, auto-capture, destination, after-capture, debug, donate, follow, discard, or about UI |
 

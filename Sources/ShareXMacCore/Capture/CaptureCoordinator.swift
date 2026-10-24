@@ -40,18 +40,22 @@ public final class CaptureCoordinator {
     private let delay: @MainActor (Double) async throws -> Void
     private let takeImage: @MainActor (CaptureMode, CaptureSettings) async throws -> CapturedImage?
     private let writeImage: @MainActor (CGImage, Date) async throws -> URL
+    private let copyToClipboard: @MainActor (CGImage) -> Void
     private let now: () -> Date
 
     public init(store: any ScreenshotStore, settings: @escaping () -> AppSettings,
                 hasPermission: @escaping () -> Bool, delay: @escaping @MainActor (Double) async throws -> Void,
                 takeImage: @escaping @MainActor (CaptureMode, CaptureSettings) async throws -> CapturedImage?,
-                writeImage: @escaping @MainActor (CGImage, Date) async throws -> URL, now: @escaping () -> Date = Date.init) {
+                writeImage: @escaping @MainActor (CGImage, Date) async throws -> URL,
+                now: @escaping () -> Date = Date.init,
+                copyToClipboard: @escaping @MainActor (CGImage) -> Void = { _ in }) {
         self.store = store
         self.settings = settings
         self.hasPermission = hasPermission
         self.delay = delay
         self.takeImage = takeImage
         self.writeImage = writeImage
+        self.copyToClipboard = copyToClipboard
         self.now = now
     }
 
@@ -70,6 +74,7 @@ public final class CaptureCoordinator {
             try Task.checkCancellation()
             let date = now()
             let url = try await writeImage(capture.image, date)
+            if options.copyToClipboard { copyToClipboard(capture.image) }
             // Once written, finish recording metadata even if cancellation is
             // requested. Never create a row before a successful atomic write.
             let record = CaptureRecord(timestamp: date, mode: mode, path: url.path,

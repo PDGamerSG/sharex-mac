@@ -6,6 +6,8 @@ final class MenuBarController: NSObject {
     private let statusItem: NSStatusItem
     private let onAction: (HotkeyAction) -> Void
     private var captureItems: [NSMenuItem] = []
+    private var actionItems: [HotkeyAction: NSMenuItem] = [:]
+    private var baseTitles: [HotkeyAction: String] = [:]
 
     init(onAction: @escaping (HotkeyAction) -> Void) {
         self.onAction = onAction
@@ -32,6 +34,19 @@ final class MenuBarController: NSObject {
         statusItem.menu = menu
     }
 
+    func updateShortcuts(_ bindings: [HotkeyAction: HotkeyBinding]) {
+        for (action, item) in actionItems {
+            guard let title = baseTitles[action] else { continue }
+            let binding = bindings[action]
+            item.title = if let binding, !binding.isEmpty {
+                "\(title)  —  \(binding.displayName)"
+            } else {
+                title
+            }
+            item.toolTip = binding.map { $0.isEmpty ? title : "Shortcut: \($0.displayName)" } ?? title
+        }
+    }
+
     func setCapturing(_ busy: Bool) {
         captureItems.forEach { $0.isEnabled = !busy }
         statusItem.button?.toolTip = busy ? "ShareX Mac — capture in progress" : "ShareX Mac"
@@ -42,6 +57,8 @@ final class MenuBarController: NSObject {
         item.target = self
         item.representedObject = action.rawValue
         menu.addItem(item)
+        actionItems[action] = item
+        baseTitles[action] = title
         if capture { captureItems.append(item) }
     }
 

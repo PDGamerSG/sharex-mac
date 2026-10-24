@@ -31,6 +31,44 @@ struct CaptureCoordinatorTests {
         #expect(!coordinator.isCapturing)
     }
 
+    @Test("copies successful screenshots when the capture setting is enabled")
+    @MainActor func copiesEnabledScreenshot() async throws {
+        let store = CoordinatorHistory()
+        var copiedImage: CGImage?
+        let coordinator = CaptureCoordinator(
+            store: store,
+            settings: { AppSettings(capture: CaptureSettings(copyToClipboard: true)) },
+            hasPermission: { true },
+            delay: { _ in },
+            takeImage: { _, _ in CapturedImage(image: Self.image()) },
+            writeImage: { _, _ in URL(fileURLWithPath: "/tmp/copied.png") },
+            copyToClipboard: { image in copiedImage = image }
+        )
+
+        _ = await coordinator.capture(.fullscreen)
+
+        #expect(copiedImage != nil)
+    }
+
+    @Test("does not copy screenshots when the capture setting is disabled")
+    @MainActor func skipsDisabledScreenshotCopy() async {
+        let store = CoordinatorHistory()
+        var copyCount = 0
+        let coordinator = CaptureCoordinator(
+            store: store,
+            settings: { AppSettings(capture: CaptureSettings(copyToClipboard: false)) },
+            hasPermission: { true },
+            delay: { _ in },
+            takeImage: { _, _ in CapturedImage(image: Self.image()) },
+            writeImage: { _, _ in URL(fileURLWithPath: "/tmp/not-copied.png") },
+            copyToClipboard: { _ in copyCount += 1 }
+        )
+
+        _ = await coordinator.capture(.fullscreen)
+
+        #expect(copyCount == 0)
+    }
+
     @Test("write failures never create a history record")
     @MainActor func writeFailure() async {
         let store = CoordinatorHistory()

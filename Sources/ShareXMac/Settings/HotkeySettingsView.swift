@@ -9,41 +9,72 @@ struct HotkeySettingsView: View {
     @ViewState private var validationError: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Click a shortcut, then press a key with Command, Control, or Option. Escape cancels; Delete clears.")
-                .font(.callout).foregroundStyle(.secondary)
-            ForEach(HotkeyAction.allCases, id: \.self) { action in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(action.title)
-                        Spacer()
-                        HotkeyRecorder(binding: settingsModel.settings.hotkeys[action] ?? HotkeyBinding(),
-                                       label: action.title,
-                                       onChange: { update(action, binding: $0) },
-                                       onRecordingChange: recordingChanged)
-                            .frame(width: 170, height: 28)
-                        Button("Clear") { update(action, binding: HotkeyBinding()) }
-                            .disabled(settingsModel.settings.hotkeys[action]?.isEmpty ?? true)
-                            .accessibilityLabel("Clear \(action.title) shortcut")
-                    }
-                    if let message = manager.registrationErrors[action] {
-                        Text(message).font(.caption).foregroundStyle(.red)
-                    }
+        Form {
+            Section {
+                Text("Choose a row, then press a shortcut with Command, Control, or Option. Escape cancels recording; Delete clears it.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section("Capture") {
+                ForEach([HotkeyAction.fullscreen, .region, .window, .ocrRegion], id: \.self) { action in
+                    shortcutRow(for: action)
                 }
             }
-            if let validationError {
-                Text(validationError).font(.callout).foregroundStyle(.red)
-                    .accessibilityLabel("Shortcut error: \(validationError)")
+            Section("App navigation") {
+                ForEach([HotkeyAction.history, .imageHistory, .settings], id: \.self) { action in
+                    shortcutRow(for: action)
+                }
             }
-            HStack {
-                Button("Reset Shortcuts") {
+            Section {
+                Button("Reset all shortcuts", role: .destructive) {
                     if settingsModel.update({ $0.hotkeys = AppSettings.defaultHotkeys }) {
                         validationError = nil
                         restoreRegistrations()
                     }
                 }
-                Text("Defaults are unassigned. Reset clears all seven shortcuts.")
-                    .font(.caption).foregroundStyle(.secondary)
+                .controlSize(.small)
+                Text("Shortcuts are unassigned by default. A shortcut that conflicts with another action or macOS is called out below its row.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let validationError {
+                Section {
+                    Label(validationError, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityLabel("Shortcut error: \(validationError)")
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private func shortcutRow(for action: HotkeyAction) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                Text(action.title)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                HotkeyRecorder(binding: settingsModel.settings.hotkeys[action] ?? HotkeyBinding(),
+                               label: action.title,
+                               onChange: { update(action, binding: $0) },
+                               onRecordingChange: recordingChanged)
+                    .frame(width: 170, height: 28)
+                Button {
+                    update(action, binding: HotkeyBinding())
+                } label: {
+                    Image(systemName: "xmark.circle")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .disabled(settingsModel.settings.hotkeys[action]?.isEmpty ?? true)
+                .help("Clear \(action.title) shortcut")
+                .accessibilityLabel("Clear \(action.title) shortcut")
+            }
+            if let message = manager.registrationErrors[action] {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -81,6 +112,7 @@ private struct HotkeyRecorder: NSViewRepresentable {
     func makeNSView(context: Context) -> ShortcutRecorderButton {
         let button = ShortcutRecorderButton()
         button.bezelStyle = .rounded
+        button.font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         button.target = button
         button.action = #selector(ShortcutRecorderButton.startRecording)
         updateNSView(button, context: context)

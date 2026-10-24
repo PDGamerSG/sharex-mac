@@ -18,12 +18,20 @@ struct SettingsStoreTests {
         let directory = try TemporaryDirectory()
         let defaults = UserDefaults(suiteName: "SettingsStoreTests.persisted.\(UUID().uuidString)")!
         let fileURL = directory.url.appendingPathComponent("settings.json")
-        let settings = AppSettings(capture: CaptureSettings(showCursor: true, delaySeconds: 4.5), ocr: OCRSettings(recognitionScale: 2, languages: ["en-US"], usesLanguageCorrection: false))
+        let settings = AppSettings(capture: CaptureSettings(showCursor: true, delaySeconds: 4.5, copyToClipboard: false), ocr: OCRSettings(recognitionScale: 2, languages: ["en-US"], usesLanguageCorrection: false))
 
         try SettingsStore(userDefaults: defaults, fileURL: fileURL).save(settings)
         let reloaded = SettingsStore(userDefaults: defaults, fileURL: fileURL).load()
 
         #expect(reloaded == settings)
+    }
+
+    @Test("old capture settings without clipboard preference keep copying enabled")
+    func legacyCaptureSettingsDefaultToClipboardCopy() throws {
+        let data = Data(#"{"capture":{"showCursor":false,"delaySeconds":0},"ocr":{"recognitionScale":1,"languages":[],"usesLanguageCorrection":true},"screenshotFolderBookmark":null,"hotkeys":[]}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+
+        #expect(decoded.capture.copyToClipboard)
     }
 
     @Test("overwriting existing settings preserves the replacement on reload")

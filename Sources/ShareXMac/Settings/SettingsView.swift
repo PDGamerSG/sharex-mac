@@ -53,11 +53,12 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle("Include cursor in screenshots", isOn: setting(\.capture.showCursor))
+                Toggle("Copy screenshots to clipboard", isOn: setting(\.capture.copyToClipboard))
                 Stepper(value: setting(\.capture.delaySeconds), in: 0...60, step: 1) {
                     LabeledContent("Capture delay", value: "\(model.settings.capture.delaySeconds.formatted()) seconds")
                 }
             } footer: {
-                Text("These options apply to all capture modes. The delay runs before the desktop is frozen.")
+                Text("These options apply to all capture modes. Clipboard copy places the image in the pasteboard after each successful capture. The delay runs before the desktop is frozen.")
             }
         }
         .formStyle(.grouped)

@@ -40,6 +40,7 @@ struct DomainTests {
         let settings = AppSettings()
         #expect(settings.capture.showCursor == false)
         #expect(settings.capture.delaySeconds == 0)
+        #expect(settings.capture.copyToClipboard)
         #expect(settings.ocr.recognitionScale == 1)
         #expect(settings.ocr.languages.isEmpty)
         #expect(settings.ocr.usesLanguageCorrection)
