@@ -3,9 +3,17 @@ import Foundation
 public final class SettingsStore: @unchecked Sendable {
     private let userDefaults: UserDefaults
     private let fileURL: URL
+    private let replaceItem: (URL, URL) throws -> Void
 
-    public init(userDefaults: UserDefaults = .standard, fileURL: URL? = nil) {
+    public convenience init(userDefaults: UserDefaults = .standard, fileURL: URL? = nil) {
+        self.init(userDefaults: userDefaults, fileURL: fileURL, replaceItem: nil)
+    }
+
+    internal init(userDefaults: UserDefaults = .standard, fileURL: URL? = nil, replaceItem: ((URL, URL) throws -> Void)?) {
         self.userDefaults = userDefaults
+        self.replaceItem = replaceItem ?? { destination, temporary in
+            _ = try FileManager.default.replaceItemAt(destination, withItemAt: temporary)
+        }
         if let fileURL {
             self.fileURL = fileURL
         } else if let storedPath = userDefaults.string(forKey: "ShareXMac.settings.fileURL") {
@@ -33,7 +41,7 @@ public final class SettingsStore: @unchecked Sendable {
         try data.write(to: temporaryURL, options: [.atomic])
         do {
             if FileManager.default.fileExists(atPath: fileURL.path) {
-                _ = try FileManager.default.replaceItemAt(fileURL, withItemAt: temporaryURL)
+                try replaceItem(fileURL, temporaryURL)
             } else {
                 try FileManager.default.moveItem(at: temporaryURL, to: fileURL)
             }

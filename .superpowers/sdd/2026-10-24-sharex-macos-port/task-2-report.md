@@ -21,6 +21,15 @@ Exact verification commands and results:
 
 The test output retained the existing Swift Testing deprecation, linker search path, and unnecessary `try` warning diagnostics; all tests passed.
 
+## Review fix round 2
+
+Added a successful overwrite/reload test and an internal replacement-operation seam used only by tests to deterministically fail after the temporary file is written. The failure test verifies the original valid settings remain readable and the temporary file is removed. Renamed the earlier parent-directory failure test to accurately describe that it fails before temporary-file creation.
+
+Exact verification commands and results:
+
+- `swift test --filter SettingsStoreTests 2>&1 | tail -30` — passed, 11 tests.
+- `swift test 2>&1 | tail -22` — passed, 15 tests.
+
 ## Changes
 
 - Added `SettingsStore` with injectable `UserDefaults` and settings file URL, default fallback settings, Codable JSON, and atomic temporary-file replacement.

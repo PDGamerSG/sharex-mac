@@ -26,6 +26,19 @@ struct SettingsStoreTests {
         #expect(reloaded == settings)
     }
 
+    @Test("overwriting existing settings preserves the replacement on reload")
+    func overwriteSettingsReload() throws {
+        let directory = try TemporaryDirectory()
+        let fileURL = directory.url.appendingPathComponent("settings.json")
+        let store = SettingsStore(fileURL: fileURL)
+        try store.save(AppSettings(capture: CaptureSettings(delaySeconds: 1)))
+        let replacement = AppSettings(capture: CaptureSettings(showCursor: true, delaySeconds: 9))
+
+        try store.save(replacement)
+
+        #expect(store.load() == replacement)
+    }
+
     @Test("saved path is reused through injected defaults")
     func persistedPathFromDefaults() throws {
         let directory = try TemporaryDirectory()
@@ -38,8 +51,8 @@ struct SettingsStoreTests {
         #expect(SettingsStore(userDefaults: defaults).load() == settings)
     }
 
-    @Test("save failure leaves no temporary settings files")
-    func atomicSaveFailureCleansTemporaryFile() throws {
+    @Test("save failure before temporary creation leaves no settings files")
+    func saveFailureBeforeTemporaryCreation() throws {
         let directory = try TemporaryDirectory()
         let parentFile = directory.url.appendingPathComponent("parent")
         try Data("file".utf8).write(to: parentFile)
@@ -48,6 +61,22 @@ struct SettingsStoreTests {
 
         #expect(throws: Error.self) { try store.save(AppSettings()) }
         #expect(try FileManager.default.contentsOfDirectory(at: directory.url, includingPropertiesForKeys: nil).filter { $0.lastPathComponent.contains("settings.json") }.isEmpty)
+    }
+
+    @Test("replacement failure preserves destination and cleans temporary file")
+    func replacementFailureCleansTemporaryFile() throws {
+        let directory = try TemporaryDirectory()
+        let fileURL = directory.url.appendingPathComponent("settings.json")
+        let original = AppSettings(capture: CaptureSettings(delaySeconds: 2))
+        let replacement = AppSettings(capture: CaptureSettings(showCursor: true, delaySeconds: 7))
+        let defaults = UserDefaults(suiteName: "SettingsStoreTests.replace.\(UUID().uuidString)")!
+        let initialStore = SettingsStore(userDefaults: defaults, fileURL: fileURL)
+        try initialStore.save(original)
+        let failingStore = SettingsStore(userDefaults: defaults, fileURL: fileURL, replaceItem: { _, _ in throw ReplacementError() })
+
+        #expect(throws: ReplacementError.self) { try failingStore.save(replacement) }
+        #expect(failingStore.load() == original)
+        #expect(try FileManager.default.contentsOfDirectory(at: directory.url, includingPropertiesForKeys: nil).filter { $0.lastPathComponent.hasPrefix(".settings.json.") }.isEmpty)
     }
 
     @Test("folder bookmarks round trip through security scoped bookmark data")
@@ -136,6 +165,7 @@ struct SettingsStoreTests {
 }
 
 private struct AccessTestError: Error {}
+private struct ReplacementError: Error {}
 
 private final class TemporaryDirectory {
     let url: URL
