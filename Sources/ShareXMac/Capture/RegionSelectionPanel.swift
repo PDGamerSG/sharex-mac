@@ -1,145 +1,100 @@
 import AppKit
-import CoreGraphics
 import ShareXMacCore
 
 @MainActor
 public final class RegionSelectionPanel {
     public init() {}
 
+    /// Bounds and result use AppKit coordinates.
     public func select(image: CGImage, screenBounds: CGRect) async -> CGRect? {
-        guard !Task.isCancelled, screenBounds.width > 0, screenBounds.height > 0 else { return nil }
-
-        let panel = SelectionPanelWindow(contentRect: screenBounds)
-        let view = RegionSelectionView(image: image, screenBounds: screenBounds)
-        panel.contentView = view
-        panel.makeKeyAndOrderFront(nil)
+        guard !Task.isCancelled, !NSScreen.screens.isEmpty, !screenBounds.isEmpty else { return nil }
+        let session = RegionSelectionSession(image: image, bounds: screenBounds)
+        let panels = NSScreen.screens.map { screen in
+            let panel = SelectionPanelWindow(contentRect: screen.frame)
+            let view = RegionSelectionView(session: session, screenFrame: screen.frame)
+            session.redraw.append { [weak view] in view?.needsDisplay = true }
+            panel.contentView = view
+            panel.makeFirstResponder(view)
+            panel.orderFrontRegardless()
+            return panel
+        }
+        let observer = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in session.result.finish(nil) }
+        }
+        defer {
+            NotificationCenter.default.removeObserver(observer)
+            panels.forEach { $0.orderOut(nil) }
+        }
         NSApp.activate(ignoringOtherApps: true)
-        panel.makeFirstResponder(view)
+        (panels.first { $0.frame.contains(NSEvent.mouseLocation) } ?? panels.first)?.makeKey()
+        return await session.result.wait()
+    }
+}
 
-        let result = await withTaskCancellationHandler(operation: {
-            await withCheckedContinuation { (continuation: CheckedContinuation<CGRect?, Never>) in
-                view.setContinuation(continuation)
-            }
-        }, onCancel: {
-            Task { @MainActor in view.cancel() }
-        })
+@MainActor
+private final class RegionSelectionSession {
+    let image: NSImage
+    let bounds: CGRect
+    let result = SelectionResult<CGRect>()
+    var redraw: [() -> Void] = []
+    var start: CGPoint?
+    var end: CGPoint?
 
-        panel.orderOut(nil)
-        return result
+    init(image: CGImage, bounds: CGRect) {
+        self.image = NSImage(cgImage: image, size: bounds.size)
+        self.bounds = bounds
+    }
+    var selection: CGRect? {
+        guard let start, let end else { return nil }
+        return RegionSelectionModel().selection(start: start, end: end, in: bounds)
+    }
+    func update(_ point: CGPoint, beginning: Bool = false) {
+        if beginning { start = point }
+        end = point
+        redraw.forEach { $0() }
     }
 }
 
 private final class RegionSelectionView: NSView {
-    private let image: NSImage
-    private let screenBounds: CGRect
-    private let model = RegionSelectionModel()
-    private var startPoint: CGPoint?
-    private var currentPoint: CGPoint?
-    private var continuation: CheckedContinuation<CGRect?, Never>?
-    private var finished = false
-    private var pendingResult: CGRect?
+    private let session: RegionSelectionSession
+    private let screenFrame: CGRect
 
-    init(image: CGImage, screenBounds: CGRect) {
-        self.image = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-        self.screenBounds = screenBounds
-        super.init(frame: CGRect(origin: .zero, size: screenBounds.size))
-        wantsLayer = true
-        layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? 1
+    init(session: RegionSelectionSession, screenFrame: CGRect) {
+        self.session = session
+        self.screenFrame = screenFrame
+        super.init(frame: CGRect(origin: .zero, size: screenFrame.size))
     }
-
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
     override var acceptsFirstResponder: Bool { true }
 
-    func setContinuation(_ continuation: CheckedContinuation<CGRect?, Never>) {
-        guard !finished else {
-            continuation.resume(returning: pendingResult)
-            return
-        }
-        self.continuation = continuation
-    }
-
-    func cancel() {
-        finish(nil)
-    }
-
     override func draw(_ dirtyRect: NSRect) {
-        image.draw(in: bounds, from: .zero, operation: .copy, fraction: 1)
+        let imageRect = session.bounds.offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY)
+        session.image.draw(in: imageRect, from: .zero, operation: .copy, fraction: 1)
         NSColor.black.withAlphaComponent(0.38).setFill()
         bounds.fill()
-
-        guard let selection = selectionRectInView else { return }
+        guard let selection = session.selection else { return }
+        let local = selection.offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY)
         NSGraphicsContext.current?.saveGraphicsState()
-        NSBezierPath(rect: selection).addClip()
-        image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1)
+        NSBezierPath(rect: local).addClip()
+        session.image.draw(in: imageRect, from: .zero, operation: .copy, fraction: 1)
         NSGraphicsContext.current?.restoreGraphicsState()
-
         NSColor.systemBlue.setStroke()
-        let outline = NSBezierPath(rect: selection)
+        let outline = NSBezierPath(rect: local)
         outline.lineWidth = 2
         outline.stroke()
     }
-
-    override func mouseDown(with event: NSEvent) {
-        let point = screenPoint(for: event)
-        startPoint = point
-        currentPoint = point
-        needsDisplay = true
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        currentPoint = screenPoint(for: event)
-        needsDisplay = true
-    }
-
+    override func mouseDown(with event: NSEvent) { session.update(point(for: event), beginning: true) }
+    override func mouseDragged(with event: NSEvent) { session.update(point(for: event)) }
     override func mouseUp(with event: NSEvent) {
-        currentPoint = screenPoint(for: event)
-        guard let startPoint, let currentPoint,
-              let selection = model.selection(start: startPoint, end: currentPoint, in: screenBounds) else {
-            finish(nil)
-            return
-        }
-        finish(selection)
+        session.update(point(for: event))
+        session.result.finish(session.selection)
     }
-
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
-            finish(nil)
-        } else {
-            super.keyDown(with: event)
-        }
+        if event.keyCode == 53 { session.result.finish(nil) }
+        else { super.keyDown(with: event) }
     }
-
-    override func cancelOperation(_ sender: Any?) {
-        finish(nil)
-    }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .crosshair)
-    }
-
-    private var selectionRectInView: CGRect? {
-        guard let startPoint, let currentPoint,
-              let selection = model.selection(start: startPoint, end: currentPoint, in: screenBounds) else {
-            return nil
-        }
-        return CGRect(x: selection.minX - screenBounds.minX,
-                      y: selection.minY - screenBounds.minY,
-                      width: selection.width,
-                      height: selection.height)
-    }
-
-    private func screenPoint(for event: NSEvent) -> CGPoint {
-        window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
-    }
-
-    private func finish(_ result: CGRect?) {
-        guard !finished else { return }
-        finished = true
-        pendingResult = result
-        let continuation = self.continuation
-        self.continuation = nil
-        continuation?.resume(returning: result)
-    }
+    override func cancelOperation(_ sender: Any?) { session.result.finish(nil) }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .crosshair) }
+    private func point(for event: NSEvent) -> CGPoint { window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation }
 }
