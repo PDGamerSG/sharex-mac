@@ -10,6 +10,17 @@ Implemented settings persistence and screenshot folder bookmark access.
 
 Build output includes existing Swift Testing deprecation warnings and linker search path warnings from the local toolchain; there were no test failures.
 
+## Review fix round
+
+Added status-aware bookmark resolution (`Resolution` with stale state and refreshed bookmark data), retained `resolve(_:)` as a delegating convenience, and added a scoped access helper that balances start/stop around success and throwing closures. Added coverage for moved-folder status, access lifecycle, malformed JSON fallback, atomic save failure cleanup, and injected defaults path reuse.
+
+Exact verification commands and results:
+
+- `swift test --filter SettingsStoreTests 2>&1 | tail -25` — passed, 9 tests.
+- `swift test 2>&1 | tail -25` — passed, 13 tests.
+
+The test output retained the existing Swift Testing deprecation, linker search path, and unnecessary `try` warning diagnostics; all tests passed.
+
 ## Changes
 
 - Added `SettingsStore` with injectable `UserDefaults` and settings file URL, default fallback settings, Codable JSON, and atomic temporary-file replacement.

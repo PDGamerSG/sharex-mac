@@ -26,6 +26,30 @@ struct SettingsStoreTests {
         #expect(reloaded == settings)
     }
 
+    @Test("saved path is reused through injected defaults")
+    func persistedPathFromDefaults() throws {
+        let directory = try TemporaryDirectory()
+        let defaults = UserDefaults(suiteName: "SettingsStoreTests.path.\(UUID().uuidString)")!
+        let fileURL = directory.url.appendingPathComponent("settings.json")
+        let settings = AppSettings(capture: CaptureSettings(showCursor: true, delaySeconds: 8))
+
+        try SettingsStore(userDefaults: defaults, fileURL: fileURL).save(settings)
+
+        #expect(SettingsStore(userDefaults: defaults).load() == settings)
+    }
+
+    @Test("save failure leaves no temporary settings files")
+    func atomicSaveFailureCleansTemporaryFile() throws {
+        let directory = try TemporaryDirectory()
+        let parentFile = directory.url.appendingPathComponent("parent")
+        try Data("file".utf8).write(to: parentFile)
+        let fileURL = parentFile.appendingPathComponent("settings.json")
+        let store = SettingsStore(fileURL: fileURL)
+
+        #expect(throws: Error.self) { try store.save(AppSettings()) }
+        #expect(try FileManager.default.contentsOfDirectory(at: directory.url, includingPropertiesForKeys: nil).filter { $0.lastPathComponent.contains("settings.json") }.isEmpty)
+    }
+
     @Test("folder bookmarks round trip through security scoped bookmark data")
     func bookmarkRoundTrip() throws {
         let directory = try TemporaryDirectory()
@@ -34,11 +58,84 @@ struct SettingsStoreTests {
         let store = FolderBookmarkStore()
 
         let bookmark = try store.makeBookmark(for: folder)
+        let resolution = try store.resolveWithStatus(bookmark)
         let resolved = try store.resolve(bookmark)
 
         #expect(resolved.standardizedFileURL == folder.standardizedFileURL)
+        #expect(resolution.url.standardizedFileURL == folder.standardizedFileURL)
+        #expect(resolution.isStale == false)
+        #expect(resolution.refreshedBookmarkData == nil)
+    }
+
+    @Test("scoped access helper invokes the closure with the resolved URL")
+    func scopedAccessHelper() throws {
+        let directory = try TemporaryDirectory()
+        let store = FolderBookmarkStore()
+        let bookmark = try store.makeBookmark(for: directory.url)
+        var invoked = false
+
+        let result = try store.withSecurityScopedAccess(to: bookmark) { url in
+            invoked = true
+            return url.standardizedFileURL
+        }
+
+        #expect(invoked)
+        #expect(result == directory.url.standardizedFileURL)
+    }
+
+    @Test("scoped access is stopped after success and errors only when started")
+    func scopedAccessLifecycle() throws {
+        let url = URL(fileURLWithPath: "/tmp")
+        var events: [String] = []
+        let value = try FolderBookmarkStore.withAccess(to: url, start: { _ in events.append("start"); return true }, stop: { _ in events.append("stop") }) { _ in
+            events.append("body")
+            return 42
+        }
+        #expect(value == 42)
+        #expect(events == ["start", "body", "stop"])
+
+        events = []
+        #expect(throws: AccessTestError.self) {
+            try FolderBookmarkStore.withAccess(to: url, start: { _ in events.append("start"); return true }, stop: { _ in events.append("stop") }) { _ in
+                events.append("body")
+                throw AccessTestError()
+            }
+        }
+        #expect(events == ["start", "body", "stop"])
+
+        events = []
+        _ = try FolderBookmarkStore.withAccess(to: url, start: { _ in false }, stop: { _ in events.append("stop") }) { _ in 42 }
+        #expect(events.isEmpty)
+    }
+
+    @Test("moved folder bookmark reports status and refreshes stale data")
+    func movedBookmarkStatus() throws {
+        let directory = try TemporaryDirectory()
+        let original = directory.url.appendingPathComponent("original", isDirectory: true)
+        let moved = directory.url.appendingPathComponent("moved", isDirectory: true)
+        try FileManager.default.createDirectory(at: original, withIntermediateDirectories: false)
+        let store = FolderBookmarkStore()
+        let bookmark = try store.makeBookmark(for: original)
+        try FileManager.default.moveItem(at: original, to: moved)
+
+        let result = try store.resolveWithStatus(bookmark)
+        #expect(result.url.standardizedFileURL == moved.standardizedFileURL)
+        #expect((result.refreshedBookmarkData != nil) == result.isStale)
+        if let refreshed = result.refreshedBookmarkData {
+            #expect(try store.resolveWithStatus(refreshed).isStale == false)
+        }
+    }
+
+    @Test("malformed JSON loads defaults")
+    func malformedSettings() throws {
+        let directory = try TemporaryDirectory()
+        let file = directory.url.appendingPathComponent("settings.json")
+        try Data("invalid json".utf8).write(to: file)
+        #expect(SettingsStore(fileURL: file).load() == AppSettings())
     }
 }
+
+private struct AccessTestError: Error {}
 
 private final class TemporaryDirectory {
     let url: URL
