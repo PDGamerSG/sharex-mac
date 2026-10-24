@@ -15,3 +15,16 @@ Implemented local SQLite screenshot history storage.
 - Added focused integration tests covering schema creation, metadata persistence, ordering, search, missing files, deletion, and SQL-special search input.
 
 SQLite emitted the existing environment linker search-path warnings for CommandLineTools; tests still completed successfully.
+
+## Review fixes
+
+- `list` and `record(for:)` now distinguish `SQLITE_DONE` from SQLite read errors and throw on failures.
+- Added actor-isolated `close()` for explicit SQLite connection shutdown; operations after close report a closed database error.
+- Filename matching now loads rows and performs Unicode-aware, filename-only matching in Swift.
+- File deletion tolerates only missing-file errors and propagates other filesystem failures.
+- Added Unicode filename, equal-timestamp ordering, and close lifecycle tests.
+
+Fix verification:
+
+- `swift test --filter SQLiteScreenshotStoreTests`: 11 tests passed.
+- `swift test`: 26 tests passed.

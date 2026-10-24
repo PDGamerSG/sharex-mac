@@ -55,6 +55,35 @@ struct SQLiteScreenshotStoreTests {
         #expect(try await store.list(search: "' OR 1=1 --").isEmpty)
     }
 
+    @Test("filename search supports Unicode case folding on the filename only")
+    func unicodeFilenameSearch() async throws {
+        let directory = try HistoryTemporaryDirectory()
+        let store = try SQLiteScreenshotStore(databaseURL: directory.url.appendingPathComponent("history.sqlite"))
+        let record = capture(path: directory.url.appendingPathComponent("CAFÉ.png").path)
+        try await store.insert(record)
+        #expect(try await store.list(search: "café").map(\.record.id) == [record.id])
+        #expect(try await store.list(search: "directory").isEmpty)
+    }
+
+    @Test("equal timestamps retain insertion order")
+    func equalTimestampOrdering() async throws {
+        let directory = try HistoryTemporaryDirectory()
+        let store = try SQLiteScreenshotStore(databaseURL: directory.url.appendingPathComponent("history.sqlite"))
+        let first = capture(path: directory.url.appendingPathComponent("first.png").path, time: 100)
+        let second = capture(path: directory.url.appendingPathComponent("second.png").path, time: 100)
+        try await store.insert(first)
+        try await store.insert(second)
+        #expect(try await store.list().map(\.record.id) == [second.id, first.id])
+    }
+
+    @Test("close releases the database and rejects later operations")
+    func closeDatabase() async throws {
+        let directory = try HistoryTemporaryDirectory()
+        let store = try SQLiteScreenshotStore(databaseURL: directory.url.appendingPathComponent("history.sqlite"))
+        await store.close()
+        await #expect(throws: StoreError.self) { try await store.list() }
+    }
+
     @Test("missing state follows file removal and recreation without changing metadata")
     func missingFiles() async throws {
         let directory = try HistoryTemporaryDirectory()

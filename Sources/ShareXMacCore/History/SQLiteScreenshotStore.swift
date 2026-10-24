@@ -19,6 +19,10 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
     }
 
 
+    public func close() {
+        if let handle = db { sqlite3_close(handle); db = nil }
+    }
+
     public func insert(_ record: CaptureRecord) throws {
         let sql = "INSERT INTO screenshots (id, timestamp, mode, path, width, height, window_title, application_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         let statement = try prepare(sql)
@@ -29,25 +33,32 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
 
     public func list(search: String? = nil) throws -> [ScreenshotHistoryEntry] {
         var sql = "SELECT id, timestamp, mode, path, width, height, window_title, application_name FROM screenshots"
-        if let search, !search.isEmpty { sql += " WHERE lower(path) LIKE '%' || lower(?) || '%'" }
         sql += " ORDER BY timestamp DESC, rowid DESC"
         let statement = try prepare(sql)
         defer { sqlite3_finalize(statement) }
-        if let search, !search.isEmpty { try bindText(search, index: 1, statement: statement) }
         var result: [ScreenshotHistoryEntry] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
-            let entry = try decode(statement)
-            if let search, !search.isEmpty {
-                let filename = URL(fileURLWithPath: entry.record.path).lastPathComponent.lowercased()
-                if !filename.contains(search.lowercased()) { continue }
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_ROW {
+                let entry = try decode(statement)
+                if let search, !search.isEmpty {
+                    let filename = URL(fileURLWithPath: entry.record.path).lastPathComponent
+                    if !filename.localizedCaseInsensitiveContains(search) { continue }
+                }
+                result.append(entry)
+            } else if status == SQLITE_DONE {
+                return result
+            } else {
+                throw currentError()
             }
-            result.append(entry)
         }
-        return result
     }
 
     public func delete(id: UUID, removeFile: Bool) throws {
-        if removeFile, let entry = try record(for: id) { try? FileManager.default.removeItem(atPath: entry.record.path) }
+        if removeFile, let entry = try record(for: id) {
+            do { try FileManager.default.removeItem(atPath: entry.record.path) }
+            catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {}
+        }
         let statement = try prepare("DELETE FROM screenshots WHERE id = ?")
         defer { sqlite3_finalize(statement) }
         try bindText(id.uuidString, index: 1, statement: statement)
@@ -58,11 +69,13 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
         let statement = try prepare("SELECT id, timestamp, mode, path, width, height, window_title, application_name FROM screenshots WHERE id = ?")
         defer { sqlite3_finalize(statement) }
         try bindText(id.uuidString, index: 1, statement: statement)
-        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        let status = sqlite3_step(statement)
+        if status == SQLITE_DONE { return nil }
+        guard status == SQLITE_ROW else { throw currentError() }
         return try decode(statement)
     }
 
-    private func prepare(_ sql: String) throws -> OpaquePointer { var statement: OpaquePointer?; guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else { throw currentError() }; return statement }
+    private func prepare(_ sql: String) throws -> OpaquePointer { guard db != nil else { throw StoreError.database("database is closed") }; var statement: OpaquePointer?; guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else { throw currentError() }; return statement }
 
     private func bind(_ record: CaptureRecord, to statement: OpaquePointer) throws {
         try bindText(record.id.uuidString, index: 1, statement: statement)
