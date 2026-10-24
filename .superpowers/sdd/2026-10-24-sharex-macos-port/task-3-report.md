@@ -28,3 +28,14 @@ Fix verification:
 
 - `swift test --filter SQLiteScreenshotStoreTests`: 11 tests passed.
 - `swift test`: 26 tests passed.
+
+## Review round 2 fix
+
+- Added privately owned `SQLiteConnectionHolder` marked `@unchecked Sendable`; its deinitializer closes the native handle automatically.
+- Explicit actor `close()` delegates to the holder and remains idempotent; all operations reject after closure.
+- Added deterministic holder deinitialization coverage.
+
+Verification:
+
+- `swift test --filter SQLiteScreenshotStoreTests`: 12 tests passed.
+- `swift test`: 27 tests passed.

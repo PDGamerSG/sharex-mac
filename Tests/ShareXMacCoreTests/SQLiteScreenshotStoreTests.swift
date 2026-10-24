@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import Testing
 @testable import ShareXMacCore
 
@@ -74,6 +75,19 @@ struct SQLiteScreenshotStoreTests {
         try await store.insert(first)
         try await store.insert(second)
         #expect(try await store.list().map(\.record.id) == [second.id, first.id])
+    }
+
+    @Test("connection holder closes automatically when released")
+    func connectionHolderDeinitClosesHandle() throws {
+        var handle: OpaquePointer?
+        #expect(sqlite3_open(":memory:", &handle) == SQLITE_OK)
+        weak var released: SQLiteConnectionHolder?
+        do {
+            let holder = SQLiteConnectionHolder(handle: handle!)
+            released = holder
+        }
+        #expect(released == nil)
+        handle = nil
     }
 
     @Test("close releases the database and rejects later operations")

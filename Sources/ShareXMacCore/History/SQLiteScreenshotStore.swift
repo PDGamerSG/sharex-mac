@@ -2,7 +2,7 @@ import Foundation
 import SQLite3
 
 public actor SQLiteScreenshotStore: ScreenshotStore {
-    private var db: OpaquePointer?
+    private let connection: SQLiteConnectionHolder
     private let databaseURL: URL
 
     public init(databaseURL: URL) throws {
@@ -13,14 +13,15 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
             sqlite3_close(handle)
             throw StoreError.database(message)
         }
-        db = handle
+        let connection = SQLiteConnectionHolder(handle: handle!)
+        self.connection = connection
         do { try Self.createSchema(handle: handle!) }
-        catch { sqlite3_close(handle); db = nil; throw error }
+        catch { connection.close(); throw error }
     }
 
 
     public func close() {
-        if let handle = db { sqlite3_close(handle); db = nil }
+        connection.close()
     }
 
     public func insert(_ record: CaptureRecord) throws {
@@ -75,7 +76,7 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
         return try decode(statement)
     }
 
-    private func prepare(_ sql: String) throws -> OpaquePointer { guard db != nil else { throw StoreError.database("database is closed") }; var statement: OpaquePointer?; guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else { throw currentError() }; return statement }
+    private func prepare(_ sql: String) throws -> OpaquePointer { guard let db = connection.handle else { throw StoreError.database("database is closed") }; var statement: OpaquePointer?; guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else { throw currentError() }; return statement }
 
     private func bind(_ record: CaptureRecord, to statement: OpaquePointer) throws {
         try bindText(record.id.uuidString, index: 1, statement: statement)
@@ -100,13 +101,20 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
         guard sqlite3_exec(handle, sql, nil, nil, nil) == SQLITE_OK else { throw StoreError.database(String(cString: sqlite3_errmsg(handle))) }
     }
 
-    private func currentError() -> StoreError { StoreError.database(String(cString: sqlite3_errmsg(db))) }
+    private func currentError() -> StoreError { guard let handle = connection.handle else { return .database("database is closed") }; return .database(String(cString: sqlite3_errmsg(handle))) }
     private func step(_ statement: OpaquePointer) throws { guard sqlite3_step(statement) == SQLITE_DONE else { throw currentError() } }
     private func bindText(_ value: String, index: Int32, statement: OpaquePointer) throws { guard sqlite3_bind_text(statement, index, value, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw currentError() } }
     private func bindOptionalText(_ value: String?, index: Int32, statement: OpaquePointer) throws { guard (value == nil ? sqlite3_bind_null(statement, index) : sqlite3_bind_text(statement, index, value!, -1, SQLITE_TRANSIENT)) == SQLITE_OK else { throw currentError() } }
     private func bindDouble(_ value: Double, index: Int32, statement: OpaquePointer) throws { guard sqlite3_bind_double(statement, index, value) == SQLITE_OK else { throw currentError() } }
     private func bindInt32(_ value: Int32, index: Int32, statement: OpaquePointer) throws { guard sqlite3_bind_int(statement, index, value) == SQLITE_OK else { throw currentError() } }
     private func optionalText(_ statement: OpaquePointer, _ index: Int32) -> String? { guard let value = sqlite3_column_text(statement, index) else { return nil }; return String(cString: value) }
+}
+
+final class SQLiteConnectionHolder: @unchecked Sendable {
+    private(set) var handle: OpaquePointer?
+    init(handle: OpaquePointer) { self.handle = handle }
+    func close() { if let handle { sqlite3_close(handle); self.handle = nil } }
+    deinit { close() }
 }
 
 public enum StoreError: Error, LocalizedError, Sendable { case database(String); public var errorDescription: String? { if case .database(let message) = self { return message }; return nil } }
