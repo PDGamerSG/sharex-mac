@@ -2,6 +2,7 @@
 .swiftpm/
 xcuserdata/
 DerivedData/
+dist/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 *.DS_Store

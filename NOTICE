@@ -1,0 +1,10 @@
+ShareX Mac is an independent, unofficial native macOS implementation of the
+screenshot, OCR, history, settings, and hotkey subset requested from ShareX.
+
+Upstream project: https://github.com/ShareX/ShareX
+Upstream license: GNU General Public License version 3 (see LICENSE).
+
+The native Swift implementation and its icon were authored for this repository.
+No Windows binaries, upload services, or upstream ShareX artwork are bundled.
+ShareX names belong to their respective owners; this project is not endorsed
+by the upstream ShareX team.

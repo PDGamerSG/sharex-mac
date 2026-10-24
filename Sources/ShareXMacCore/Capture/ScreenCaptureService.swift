@@ -24,16 +24,23 @@ public final class ScreenCaptureService: Sendable {
     public init() {}
 
     public func captureAllDisplays(showCursor: Bool = false) async throws -> CGImage {
+        try await captureDesktop(showCursor: showCursor).image
+    }
+
+    public func captureDesktop(showCursor: Bool = false) async throws -> CapturedDesktop {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard !content.displays.isEmpty else { throw CaptureError.noDisplays }
+        let ownWindows = content.windows.filter { $0.owningApplication?.processID == ProcessInfo.processInfo.processIdentifier }
         var captures: [DisplayCompositor.DisplayCapture] = []
         for display in content.displays {
-            let image = try await capture(filter: SCContentFilter(display: display, excludingWindows: []),
+            let image = try await capture(filter: SCContentFilter(display: display, excludingWindows: ownWindows),
                                           frame: display.frame, displayID: display.displayID,
                                           showCursor: showCursor)
             captures.append(image)
         }
-        return DisplayCompositor().composite(captures)
+        let bounds = captures.reduce(CGRect.null) { $0.union($1.frame) }
+        return CapturedDesktop(image: DisplayCompositor().composite(captures),
+                               geometry: DesktopGeometry(quartzBounds: bounds, mainDisplayHeight: CGDisplayBounds(CGMainDisplayID()).height), displayCount: captures.count)
     }
 
     public func captureWindow(_ window: SCWindow, showCursor: Bool = false) async throws -> CGImage {

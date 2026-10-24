@@ -1,0 +1,104 @@
+import CoreGraphics
+import Foundation
+import Testing
+@testable import ShareXMacCore
+
+@Suite("Capture coordination")
+struct CaptureCoordinatorTests {
+    @Test("normalizes delay and only records successfully written screenshots")
+    @MainActor func success() async throws {
+        let store = CoordinatorHistory()
+        var receivedDelay: Double?
+        var writes = 0
+        let date = Date(timeIntervalSince1970: 123)
+        let coordinator = CaptureCoordinator(store: store, settings: { AppSettings(capture: CaptureSettings(delaySeconds: 90)) },
+            hasPermission: { true }, delay: { receivedDelay = $0 },
+            takeImage: { _, settings in
+                #expect(settings.normalizedDelaySeconds == 60)
+                return CapturedImage(image: Self.image(), windowTitle: "Editor", applicationName: "TextEdit")
+            }, writeImage: { _, _ in writes += 1; return URL(fileURLWithPath: "/tmp/capture.png") }, now: { date })
+
+        let result = await coordinator.capture(.window)
+        let record = try result.get()
+        #expect(receivedDelay == 60)
+        #expect(writes == 1)
+        #expect(record.timestamp == date)
+        #expect(record.mode == .window)
+        #expect(record.width == 2 && record.height == 2)
+        #expect(record.windowTitle == "Editor")
+        #expect(record.captureSettings?.delaySeconds == 60)
+        #expect(await store.list(search: nil).count == 1)
+        #expect(!coordinator.isCapturing)
+    }
+
+    @Test("write failures never create a history record")
+    @MainActor func writeFailure() async {
+        let store = CoordinatorHistory()
+        let coordinator = CaptureCoordinator(store: store, settings: { AppSettings() }, hasPermission: { true },
+            delay: { _ in }, takeImage: { _, _ in CapturedImage(image: Self.image()) },
+            writeImage: { _, _ in throw TestFailure.write })
+        if case .success = await coordinator.capture(.fullscreen) { Issue.record("Write failure reported success") }
+        #expect(await store.list(search: nil).isEmpty)
+        #expect(!coordinator.isCapturing)
+    }
+
+    @Test("cancelled selections neither write images nor record history")
+    @MainActor func selectionCancellation() async {
+        let store = CoordinatorHistory()
+        var wrote = false
+        let coordinator = CaptureCoordinator(store: store, settings: { AppSettings() }, hasPermission: { true },
+            delay: { _ in }, takeImage: { _, _ in nil }, writeImage: { _, _ in wrote = true; return URL(fileURLWithPath: "/tmp/no.png") })
+        if case .failure(.cancelled) = await coordinator.capture(.region) {} else { Issue.record("Expected cancellation") }
+        #expect(!wrote)
+        #expect(await store.list(search: nil).isEmpty)
+    }
+
+    @Test("permission denial stops before delay or capture")
+    @MainActor func permissionGate() async {
+        var invoked = false
+        let coordinator = CaptureCoordinator(store: CoordinatorHistory(), settings: { AppSettings() }, hasPermission: { false },
+            delay: { _ in invoked = true }, takeImage: { _, _ in invoked = true; return nil },
+            writeImage: { _, _ in URL(fileURLWithPath: "/tmp/no.png") })
+        if case .failure(.permissionRequired) = await coordinator.capture(.fullscreen) {} else { Issue.record("Expected permission error") }
+        #expect(!invoked)
+    }
+
+    @Test("countdown cancellation stops before capture")
+    @MainActor func delayCancellation() async {
+        var invoked = false
+        let coordinator = CaptureCoordinator(store: CoordinatorHistory(), settings: { AppSettings() }, hasPermission: { true },
+            delay: { _ in throw CancellationError() }, takeImage: { _, _ in invoked = true; return nil },
+            writeImage: { _, _ in URL(fileURLWithPath: "/tmp/no.png") })
+        if case .failure(.cancelled) = await coordinator.capture(.fullscreen) {} else { Issue.record("Expected cancellation") }
+        #expect(!invoked)
+    }
+
+    @Test("history failure preserves a useful path to the saved screenshot")
+    @MainActor func historyFailure() async {
+        let coordinator = CaptureCoordinator(store: CoordinatorHistory(failsInsert: true), settings: { AppSettings() }, hasPermission: { true },
+            delay: { _ in }, takeImage: { _, _ in CapturedImage(image: Self.image()) },
+            writeImage: { _, _ in URL(fileURLWithPath: "/tmp/saved.png") })
+        if case .failure(.historyFailed(let path, _)) = await coordinator.capture(.fullscreen) {
+            #expect(path == "/tmp/saved.png")
+        } else { Issue.record("Expected a saved-file history error") }
+    }
+
+    private static func image() -> CGImage {
+        CGContext(data: nil, width: 2, height: 2, bitsPerComponent: 8, bytesPerRow: 8,
+                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!.makeImage()!
+    }
+}
+
+private enum TestFailure: Error { case write }
+private actor CoordinatorHistory: ScreenshotStore {
+    var records: [CaptureRecord] = []
+    let failsInsert: Bool
+    init(failsInsert: Bool = false) { self.failsInsert = failsInsert }
+    func insert(_ record: CaptureRecord) throws {
+        if failsInsert { throw TestFailure.write }
+        records.append(record)
+    }
+    func list(search: String?) -> [ScreenshotHistoryEntry] { records.map { ScreenshotHistoryEntry(record: $0, isMissing: false) } }
+    func delete(id: UUID, removeFile: Bool) { records.removeAll { $0.id == id } }
+    func record(for id: UUID) -> ScreenshotHistoryEntry? { nil }
+}

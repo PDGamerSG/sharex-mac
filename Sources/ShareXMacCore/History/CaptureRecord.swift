@@ -9,8 +9,10 @@ public struct CaptureRecord: Codable, Identifiable, Equatable, Sendable {
     public let height: Int
     public let windowTitle: String?
     public let applicationName: String?
+    public let captureSettings: CaptureSettings?
+    public let displayCount: Int?
 
-    public init(id: UUID = UUID(), timestamp: Date = Date(), mode: CaptureMode, path: String, width: Int, height: Int, windowTitle: String? = nil, applicationName: String? = nil) {
+    public init(id: UUID = UUID(), timestamp: Date = Date(), mode: CaptureMode, path: String, width: Int, height: Int, windowTitle: String? = nil, applicationName: String? = nil, captureSettings: CaptureSettings? = nil, displayCount: Int? = nil) {
         self.id = id
         self.timestamp = timestamp
         self.mode = mode
@@ -19,5 +21,7 @@ public struct CaptureRecord: Codable, Identifiable, Equatable, Sendable {
         self.height = height
         self.windowTitle = windowTitle
         self.applicationName = applicationName
+        self.captureSettings = captureSettings
+        self.displayCount = displayCount
     }
 }

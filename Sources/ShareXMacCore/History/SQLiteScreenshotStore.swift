@@ -25,7 +25,7 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
     }
 
     public func insert(_ record: CaptureRecord) throws {
-        let sql = "INSERT INTO screenshots (id, timestamp, mode, path, width, height, window_title, application_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        let sql = "INSERT INTO screenshots (id, timestamp, mode, path, width, height, window_title, application_name, capture_settings, display_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         let statement = try prepare(sql)
         defer { sqlite3_finalize(statement) }
         try bind(record, to: statement)
@@ -33,7 +33,7 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
     }
 
     public func list(search: String? = nil) throws -> [ScreenshotHistoryEntry] {
-        var sql = "SELECT id, timestamp, mode, path, width, height, window_title, application_name FROM screenshots"
+        var sql = "SELECT id, timestamp, mode, path, width, height, window_title, application_name, capture_settings, display_count FROM screenshots"
         sql += " ORDER BY timestamp DESC, rowid DESC"
         let statement = try prepare(sql)
         defer { sqlite3_finalize(statement) }
@@ -67,7 +67,7 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
     }
 
     public func record(for id: UUID) throws -> ScreenshotHistoryEntry? {
-        let statement = try prepare("SELECT id, timestamp, mode, path, width, height, window_title, application_name FROM screenshots WHERE id = ?")
+        let statement = try prepare("SELECT id, timestamp, mode, path, width, height, window_title, application_name, capture_settings, display_count FROM screenshots WHERE id = ?")
         defer { sqlite3_finalize(statement) }
         try bindText(id.uuidString, index: 1, statement: statement)
         let status = sqlite3_step(statement)
@@ -87,18 +87,42 @@ public actor SQLiteScreenshotStore: ScreenshotStore {
         try bindInt32(Int32(record.height), index: 6, statement: statement)
         try bindOptionalText(record.windowTitle, index: 7, statement: statement)
         try bindOptionalText(record.applicationName, index: 8, statement: statement)
+        let options = try record.captureSettings.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
+        try bindOptionalText(options, index: 9, statement: statement)
+        try bindOptionalText(record.displayCount.map(String.init), index: 10, statement: statement)
     }
 
     private func decode(_ statement: OpaquePointer) throws -> ScreenshotHistoryEntry {
         guard let id = UUID(uuidString: String(cString: sqlite3_column_text(statement, 0))), let mode = CaptureMode(rawValue: String(cString: sqlite3_column_text(statement, 2))) else { throw StoreError.database("invalid stored record") }
         let path = String(cString: sqlite3_column_text(statement, 3))
-        let record = CaptureRecord(id: id, timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)), mode: mode, path: path, width: Int(sqlite3_column_int(statement, 4)), height: Int(sqlite3_column_int(statement, 5)), windowTitle: optionalText(statement, 6), applicationName: optionalText(statement, 7))
+        let options = try optionalText(statement, 8).map { try JSONDecoder().decode(CaptureSettings.self, from: Data($0.utf8)) }
+        let displays = sqlite3_column_type(statement, 9) == SQLITE_NULL ? nil : Int(sqlite3_column_int(statement, 9))
+        let record = CaptureRecord(id: id, timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)), mode: mode, path: path, width: Int(sqlite3_column_int(statement, 4)), height: Int(sqlite3_column_int(statement, 5)), windowTitle: optionalText(statement, 6), applicationName: optionalText(statement, 7), captureSettings: options, displayCount: displays)
         return ScreenshotHistoryEntry(record: record, isMissing: !FileManager.default.fileExists(atPath: path))
     }
 
     private static func createSchema(handle: OpaquePointer) throws {
         let sql = "CREATE TABLE IF NOT EXISTS screenshots (id TEXT PRIMARY KEY, timestamp REAL NOT NULL, mode TEXT NOT NULL, path TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, window_title TEXT, application_name TEXT)"
         guard sqlite3_exec(handle, sql, nil, nil, nil) == SQLITE_OK else { throw StoreError.database(String(cString: sqlite3_errmsg(handle))) }
+        // Existing installations keep all rows. Optional fields distinguish
+        // historical records whose capture settings were never stored.
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(handle, "PRAGMA table_info(screenshots)", -1, &statement, nil) == SQLITE_OK else {
+            throw StoreError.database(String(cString: sqlite3_errmsg(handle)))
+        }
+        defer { sqlite3_finalize(statement) }
+        var columns: Set<String> = []
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { break }
+            guard status == SQLITE_ROW else { throw StoreError.database(String(cString: sqlite3_errmsg(handle))) }
+            columns.insert(String(cString: sqlite3_column_text(statement, 1)))
+        }
+        for (column, type) in [("capture_settings", "TEXT"), ("display_count", "INTEGER")] where !columns.contains(column) {
+            guard sqlite3_exec(handle, "ALTER TABLE screenshots ADD COLUMN \(column) \(type)", nil, nil, nil) == SQLITE_OK else {
+                throw StoreError.database(String(cString: sqlite3_errmsg(handle)))
+            }
+        }
     }
 
     private func currentError() -> StoreError { guard let handle = connection.handle else { return .database("database is closed") }; return .database(String(cString: sqlite3_errmsg(handle))) }
