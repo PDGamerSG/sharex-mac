@@ -55,17 +55,22 @@ import Testing
         #expect(actions == [.settings])
         try manager.register(AppSettings.defaultHotkeys)
         registrar.onHotkey?(6)
-        #expect(actions == [.settings])
-        #expect(registrar.activeIDs.isEmpty)
+        registrar.onHotkey?(2)
+        registrar.onHotkey?(4)
+        #expect(actions == [.settings, .region, .ocrRegion])
+        try manager.register([:])
+        registrar.onHotkey?(2)
+        registrar.onHotkey?(4)
+        #expect(actions == [.settings, .region, .ocrRegion])
     }
 
-    @Test("Carbon reports duplicate system registrations and dispatches an owned event")
-    func nativeRegistration() throws {
+    @Test("Carbon registers modified and Shift-only shortcuts, reports conflicts and dispatches", arguments: [UInt32(6912), UInt32(512)])
+    func nativeRegistration(modifiers: UInt32) throws {
         var actions: [HotkeyAction] = []
         let first = GlobalHotkeyManager(actionHandler: { actions.append($0) })
         let second = GlobalHotkeyManager(actionHandler: { _ in })
         defer { first.unregisterAll(); second.unregisterAll() }
-        let binding = HotkeyBinding(keyCode: 80, modifierFlags: 6912)
+        let binding = HotkeyBinding(keyCode: 80, modifierFlags: modifiers)
         try first.register([.settings: binding])
         #expect(first.registrationErrors.isEmpty)
         try second.register([.imageHistory: binding])

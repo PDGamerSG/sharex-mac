@@ -9,7 +9,7 @@ public enum HotkeyValidationError: Error, Equatable, LocalizedError {
         case let .duplicate(first, second):
             return "\(first.title) and \(second.title) use the same shortcut. Choose a different combination."
         case let .invalid(action):
-            return "Choose a key with Command, Control, or Option for \(action.title)."
+            return "Choose a key with Command, Control, Option, or Shift for \(action.title)."
         }
     }
 }
@@ -76,7 +76,7 @@ public struct HotkeyBinding: Codable, Equatable, Sendable {
             guard let code = binding.keyCode, code <= 127,
                   ![54, 55, 56, 57, 58, 59, 60, 61, 62, 63].contains(code),
                   binding.modifierFlags & ~UInt32(6912) == 0,
-                  binding.modifierFlags & UInt32(6400) != 0,
+                  binding.modifierFlags != 0,
                   binding.unknownModifiers.isEmpty else {
                 throw HotkeyValidationError.invalid(action)
             }

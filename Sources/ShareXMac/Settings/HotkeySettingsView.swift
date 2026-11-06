@@ -11,7 +11,7 @@ struct HotkeySettingsView: View {
     var body: some View {
         Form {
             Section {
-                Text("Choose a row, then press a shortcut with Command, Control, or Option. Escape cancels recording; Delete clears it.")
+                Text("Choose a row, then press a shortcut with Command, Control, Option, or Shift. Escape cancels recording; Delete clears it.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -34,7 +34,7 @@ struct HotkeySettingsView: View {
                     }
                 }
                 .controlSize(.small)
-                Text("Shortcuts are unassigned by default. A shortcut that conflicts with another action or macOS is called out below its row.")
+                Text("Defaults: Option-P captures a region; Shift-P recognizes text in a region. Other shortcuts are unassigned. A shortcut that conflicts with another action or macOS is called out below its row.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

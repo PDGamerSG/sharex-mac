@@ -53,7 +53,9 @@ struct DomainTests {
         #expect(settings.ocr.usesLanguageCorrection)
         #expect(settings.screenshotFolderBookmark == nil)
         #expect(Set(settings.hotkeys.keys) == Set(HotkeyAction.allCases))
-        for action in HotkeyAction.allCases {
+        #expect(settings.hotkeys[.region] == HotkeyBinding(keyCode: 35, modifierFlags: 2048))
+        #expect(settings.hotkeys[.ocrRegion] == HotkeyBinding(keyCode: 35, modifierFlags: 512))
+        for action in [HotkeyAction.fullscreen, .window, .imageHistory, .settings] {
             #expect(settings.hotkeys[action] == HotkeyBinding())
         }
     }

@@ -24,7 +24,7 @@ struct HotkeyBindingTests {
         }
     }
 
-    @Test("clearing and resetting remove active bindings and permit reusing a shortcut")
+    @Test("clearing and resetting release custom shortcuts for reuse")
     func clearAndReset() throws {
         var settings = AppSettings()
         settings.hotkeys[.fullscreen] = HotkeyBinding(keyCode: 40, modifierFlags: 2304)
@@ -33,9 +33,8 @@ struct HotkeyBindingTests {
         try HotkeyBinding.validate(settings.hotkeys)
         #expect(settings.hotkeys[.fullscreen]?.isEmpty == true)
         settings.hotkeys = AppSettings.defaultHotkeys
+        settings.hotkeys[.fullscreen] = HotkeyBinding(keyCode: 40, modifierFlags: 2304)
         try HotkeyBinding.validate(settings.hotkeys)
-        let allEmpty = settings.hotkeys.values.allSatisfy { $0.isEmpty }
-        #expect(allEmpty)
     }
 
     @Test("physical key zero remains bound and round trips alongside legacy settings")
@@ -52,10 +51,24 @@ struct HotkeyBindingTests {
         #expect(restored.hotkeys[.region]?.modifierFlags == 4608)
     }
 
-    @Test("plain typing, unknown modifiers and invalid keycodes are rejected")
+    @Test("Shift-only OCR shortcuts validate and survive saving", arguments: ["p", "b"])
+    func shiftOnlyShortcuts(key: String) throws {
+        let binding = HotkeyBinding(key: key, modifiers: ["shift"])
+        let restored = try JSONDecoder().decode(HotkeyBinding.self, from: JSONEncoder().encode(binding))
+        try HotkeyBinding.validate([.ocrRegion: restored,
+                                    .region: HotkeyBinding(key: "b", modifiers: ["option"])])
+        #expect(restored.modifierFlags == 512)
+        #expect(restored.displayName == "⇧\(key.uppercased())")
+        #expect(throws: HotkeyValidationError.duplicate(.region, .ocrRegion)) {
+            try HotkeyBinding.validate([.region: restored, .ocrRegion: restored])
+        }
+    }
+
+    @Test("plain typing, modifier-only keys, unknown modifiers and invalid keycodes are rejected")
     func invalidBindings() {
         for binding in [HotkeyBinding(keyCode: 40, modifierFlags: 0),
-                        HotkeyBinding(keyCode: 40, modifierFlags: 512),
+                        HotkeyBinding(keyCode: 56, modifierFlags: 512),
+                        HotkeyBinding(keyCode: 40, modifierFlags: 1024),
                         HotkeyBinding(keyCode: 65535, modifierFlags: 256),
                         HotkeyBinding(key: "not a key", modifiers: ["command"]),
                         HotkeyBinding(key: "k", modifiers: ["command", "hyper"]),

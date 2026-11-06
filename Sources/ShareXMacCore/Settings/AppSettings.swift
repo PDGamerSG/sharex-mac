@@ -25,5 +25,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.hotkeys = hotkeys
     }
 
-    public static let defaultHotkeys: [HotkeyAction: HotkeyBinding] = Dictionary(uniqueKeysWithValues: HotkeyAction.allCases.map { ($0, HotkeyBinding()) })
+    public static let defaultHotkeys: [HotkeyAction: HotkeyBinding] = Dictionary(uniqueKeysWithValues: HotkeyAction.allCases.map { action in
+        let binding: HotkeyBinding = switch action {
+        case .region: HotkeyBinding(key: "p", modifiers: ["option"])
+        case .ocrRegion: HotkeyBinding(key: "p", modifiers: ["shift"])
+        default: HotkeyBinding()
+        }
+        return (action, binding)
+    })
 }
