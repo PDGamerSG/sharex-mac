@@ -33,7 +33,7 @@ Global shortcuts work while the app is running. In **Settings → Hotkeys**, rec
 - Keep full pixel resolution, or choose 75% or 50% dimensions for smaller files and clipboard images.
 - Copy each successful screenshot to the clipboard automatically, with an option to disable copying.
 - Include or hide the cursor and set a capture delay from 0 to 60 seconds with a cancellable countdown.
-- See a brief “Screenshot taken” confirmation with **Open Folder** to reveal the saved image in Finder.
+- See a brief “Screenshot taken” confirmation with **Open Folder** to reveal the saved image in Finder after regular screenshots. OCR captures open their text results without this notification.
 
 ### Offline OCR
 

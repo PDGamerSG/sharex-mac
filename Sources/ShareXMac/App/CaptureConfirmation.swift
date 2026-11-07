@@ -8,6 +8,7 @@ final class CaptureConfirmation: NSObject {
     private var currentRecord: CaptureRecord?
 
     func show(record: CaptureRecord) {
+        guard record.mode != .ocrRegion else { return }
         displayTask?.cancel()
         panel?.orderOut(nil)
 
