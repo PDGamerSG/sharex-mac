@@ -6,6 +6,41 @@ import Testing
 
 @Suite("Capture file writing")
 struct CaptureFileWriterTests {
+    @Test("captures use year-month folders and preserve existing files in the selected folder")
+    func monthlyFolders() throws {
+        let directory = try TemporaryDirectory()
+        let existing = directory.url.appendingPathComponent("older-capture.png")
+        let original = Data("existing capture".utf8)
+        try original.write(to: existing)
+        let image = try onePixelImage()
+        let dates = ["2025-12-15T12:00:00Z", "2026-01-15T12:00:00Z", "2027-01-15T12:00:00Z"]
+        let months = ["2025-12", "2026-01", "2027-01"]
+        for (timestamp, month) in zip(dates, months) {
+            let date = try #require(ISO8601DateFormatter().date(from: timestamp))
+            let output = try CaptureFileWriter().writePNG(image, to: directory.url, date: date)
+            #expect(output.deletingLastPathComponent().lastPathComponent == month)
+            #expect(output.deletingLastPathComponent().deletingLastPathComponent().path == directory.url.path)
+            #expect(CGImageSourceCreateWithURL(output as CFURL, nil) != nil)
+        }
+        #expect(try Data(contentsOf: existing) == original)
+    }
+
+    @Test("the next capture creates a new folder at the local month boundary")
+    func localMonthRollover() throws {
+        let directory = try TemporaryDirectory()
+        let image = try onePixelImage()
+        let calendar = Calendar(identifier: .gregorian)
+        let before = try #require(calendar.date(from: DateComponents(year: 2025, month: 12, day: 31,
+                                                                     hour: 23, minute: 59, second: 59)))
+        let writer = CaptureFileWriter()
+        let december = try writer.writePNG(image, to: directory.url, date: before)
+        let january = try writer.writePNG(image, to: directory.url, date: before.addingTimeInterval(1))
+        #expect(december.deletingLastPathComponent().lastPathComponent == "2025-12")
+        #expect(january.deletingLastPathComponent().lastPathComponent == "2026-01")
+        #expect(FileManager.default.fileExists(atPath: december.path))
+        #expect(FileManager.default.fileExists(atPath: january.path))
+    }
+
     @Test("collisions receive numeric suffixes and preserve earlier captures")
     func collisionSuffixes() throws {
         let directory = try TemporaryDirectory()
@@ -31,7 +66,7 @@ struct CaptureFileWriterTests {
         let output = try CaptureFileWriter().writePNG(image, to: directory.url, date: Date(timeIntervalSince1970: 1_735_689_600))
 
         #expect(CGImageSourceCreateWithURL(output as CFURL, nil) != nil)
-        let files = try FileManager.default.contentsOfDirectory(at: directory.url, includingPropertiesForKeys: nil)
+        let files = try FileManager.default.contentsOfDirectory(at: output.deletingLastPathComponent(), includingPropertiesForKeys: nil)
         #expect(files.count == 1)
         #expect(files.first?.pathExtension == "png")
     }
@@ -63,7 +98,8 @@ struct CaptureFileWriterTests {
         for output in outputs {
             #expect(CGImageSourceCreateWithURL(output as CFURL, nil) != nil)
         }
-        let files = try FileManager.default.contentsOfDirectory(at: directory.url, includingPropertiesForKeys: nil)
+        let outputDirectory = try #require(outputs.first).deletingLastPathComponent()
+        let files = try FileManager.default.contentsOfDirectory(at: outputDirectory, includingPropertiesForKeys: nil)
         #expect(files.count == 8)
         #expect(files.allSatisfy { !$0.lastPathComponent.hasPrefix(".ShareX_") })
     }
@@ -134,7 +170,8 @@ struct CaptureFileWriterTests {
     }
 
     private func temporaryFiles(in directory: URL) throws -> [URL] {
-        try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        let enumerator = try #require(FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil))
+        return enumerator.compactMap { $0 as? URL }
             .filter { $0.lastPathComponent.hasPrefix(".ShareX_") && $0.pathExtension == "tmp" }
     }
 }

@@ -64,16 +64,19 @@ public struct CaptureFileWriter: Sendable {
 
     @discardableResult
     public func writePNG(_ image: CGImage, to directory: URL, date: Date = Date()) throws -> URL {
-        try makeDirectory(directory)
-        let stem = Self.dateFormatter.string(from: date)
-        let temporary = directory.appendingPathComponent(".ShareX_\(UUID().uuidString).tmp")
+        let formatter = Self.dateFormatter
+        let stem = formatter.string(from: date)
+        formatter.dateFormat = "yyyy-MM"
+        let monthDirectory = directory.appendingPathComponent(formatter.string(from: date), isDirectory: true)
+        try makeDirectory(monthDirectory)
+        let temporary = monthDirectory.appendingPathComponent(".ShareX_\(UUID().uuidString).tmp")
         defer { removeItem(temporary) }
         try encodePNG(image, temporary)
 
         var suffix = 0
         while true {
             let filename = suffix == 0 ? "ShareX_\(stem).png" : "ShareX_\(stem)_\(suffix).png"
-            let target = directory.appendingPathComponent(filename)
+            let target = monthDirectory.appendingPathComponent(filename)
             do {
                 // RENAME_EXCL atomically publishes the complete PNG without
                 // replacing a winner from this or another process.

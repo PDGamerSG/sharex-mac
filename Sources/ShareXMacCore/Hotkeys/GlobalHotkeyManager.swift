@@ -61,9 +61,15 @@ public final class GlobalHotkeyManager: ObservableObject {
 private final class CarbonHotkeyRegistrar: HotkeyRegistering {
     var onHotkey: (@MainActor (UInt32) -> Void)?
     private let resources = CarbonHotkeyResources()
+    private let mediaRegistrar = MediaHotkeyRegistrar()
     private static let signature: OSType = 0x53784D63 // SxMc
 
     func register(id: UInt32, binding: HotkeyBinding) throws {
+        if binding.mediaKeyCode != nil {
+            mediaRegistrar.onHotkey = { [weak self] id in self?.onHotkey?(id) }
+            try mediaRegistrar.register(id: id, binding: binding)
+            return
+        }
         if resources.handler == nil {
             var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
             let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
@@ -90,7 +96,10 @@ private final class CarbonHotkeyRegistrar: HotkeyRegistering {
         resources.registrations.append(reference)
     }
 
-    func unregisterAll() { resources.unregisterAll() }
+    func unregisterAll() {
+        mediaRegistrar.unregisterAll()
+        resources.unregisterAll()
+    }
 }
 
 /// Carbon owns these handles until explicit unregister or final release. Access is serialized by

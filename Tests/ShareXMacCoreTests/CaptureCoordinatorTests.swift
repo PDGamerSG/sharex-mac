@@ -135,6 +135,9 @@ struct CaptureCoordinatorTests {
           arguments: [CaptureMode.fullscreen, .region, .window, .ocrRegion])
     @MainActor func outputSize(_ mode: CaptureMode) async throws {
         let source = Self.image()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ShareXMonthly-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let date = try #require(ISO8601DateFormatter().date(from: "2026-11-15T12:00:00Z"))
         let store = CoordinatorHistory()
         var written: CGImage?
         var copiedFile: URL?
@@ -142,8 +145,11 @@ struct CaptureCoordinatorTests {
         let coordinator = CaptureCoordinator(store: store,
             settings: { AppSettings(capture: CaptureSettings(screenshotResolution: .half)) },
             hasPermission: { true }, delay: { _ in }, takeImage: { _, _ in CapturedImage(image: source) },
-            writeImage: { image, _ in written = image; return URL(fileURLWithPath: "/tmp/output.png") },
-            copyFileToClipboard: { copiedFile = $0 }, onSaved: { record in
+            writeImage: { image, date in
+                written = image
+                return try CaptureFileWriter().writePNG(image, to: directory, date: date)
+            },
+            now: { date }, copyFileToClipboard: { copiedFile = $0 }, onSaved: { record in
                 #expect(written != nil)
                 confirmations.append(record)
             })
@@ -151,7 +157,10 @@ struct CaptureCoordinatorTests {
         let expectedSize = mode == .ocrRegion ? 2 : 1
         #expect(written?.width == expectedSize)
         #expect(written?.height == expectedSize)
-        #expect(copiedFile?.path == "/tmp/output.png")
+        #expect(record.containingFolderURL.lastPathComponent == "2026-11")
+        #expect(record.containingFolderURL.deletingLastPathComponent().path == directory.path)
+        #expect(FileManager.default.fileExists(atPath: record.path))
+        #expect(copiedFile?.path == record.path)
         #expect(record.width == expectedSize && record.height == expectedSize)
         #expect(record.captureSettings?.screenshotResolution == (mode == .ocrRegion ? .full : .half))
         #expect(confirmations == [record])

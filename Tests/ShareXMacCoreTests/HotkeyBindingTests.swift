@@ -4,6 +4,28 @@ import Testing
 
 @Suite("Hotkey bindings")
 struct HotkeyBindingTests {
+    @Test("media-mode Option-F9 keeps its event identity when saved")
+    func mediaShortcutPersistence() throws {
+        let binding = try JSONDecoder().decode(HotkeyBinding.self, from: Data(
+            #"{"keyCode":101,"modifierFlags":2048,"mediaKeyCode":17}"#.utf8))
+        try HotkeyBinding.validate([.region: binding])
+        #expect(binding.displayName == "⌥F9")
+        let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(binding)) as? [String: Any]
+        #expect(encoded?["mediaKeyCode"] as? Int == 17)
+    }
+
+    @Test("malformed media bindings are rejected")
+    func invalidMediaShortcuts() throws {
+        for json in [#"{"keyCode":101,"modifierFlags":2048,"mediaKeyCode":999}"#,
+                     #"{"keyCode":35,"modifierFlags":2048,"mediaKeyCode":17}"#,
+                     #"{"modifierFlags":0,"mediaKeyCode":17}"#] {
+            let binding = try JSONDecoder().decode(HotkeyBinding.self, from: Data(json.utf8))
+            #expect(throws: HotkeyValidationError.self) {
+                try HotkeyBinding.validate([.region: binding])
+            }
+        }
+    }
+
     @Test("new keycode settings decode without losing the physical key")
     func modernSettingsDecode() throws {
         let data = Data(#"{"keyCode":40,"modifierFlags":2304}"#.utf8)
@@ -64,10 +86,22 @@ struct HotkeyBindingTests {
         }
     }
 
-    @Test("plain typing, modifier-only keys, unknown modifiers and invalid keycodes are rejected")
+    @Test("single keys and Option-F9 validate, persist and detect duplicates",
+          arguments: [HotkeyBinding(key: "a"), HotkeyBinding(key: "p"),
+                      HotkeyBinding(key: "F9"), HotkeyBinding(key: "F9", modifiers: ["option"])])
+    func singleKeysAndFunctionKeys(binding: HotkeyBinding) throws {
+        let restored = try JSONDecoder().decode(HotkeyBinding.self, from: JSONEncoder().encode(binding))
+        try HotkeyBinding.validate([.region: restored])
+        #expect(restored == binding)
+        #expect(!restored.isEmpty)
+        #expect(throws: HotkeyValidationError.duplicate(.region, .ocrRegion)) {
+            try HotkeyBinding.validate([.region: restored, .ocrRegion: restored])
+        }
+    }
+
+    @Test("modifier-only keys, unknown modifiers and invalid keycodes are rejected")
     func invalidBindings() {
-        for binding in [HotkeyBinding(keyCode: 40, modifierFlags: 0),
-                        HotkeyBinding(keyCode: 56, modifierFlags: 512),
+        for binding in [HotkeyBinding(keyCode: 56, modifierFlags: 512),
                         HotkeyBinding(keyCode: 40, modifierFlags: 1024),
                         HotkeyBinding(keyCode: 65535, modifierFlags: 256),
                         HotkeyBinding(key: "not a key", modifiers: ["command"]),

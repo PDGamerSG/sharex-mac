@@ -1,10 +1,32 @@
 import Carbon
+import AppKit
 import Foundation
 import Testing
 @testable import ShareXMacCore
 
 @Suite("Global hotkey registration")
 @MainActor struct GlobalHotkeyManagerTests {
+    @Test("native media events dispatch through the manager",
+          .enabled(if: AXIsProcessTrusted(), "Requires Accessibility access to inject a media event"))
+    func nativeMediaRegistration() throws {
+        var actions: [HotkeyAction] = []
+        let manager = GlobalHotkeyManager(actionHandler: { actions.append($0) })
+        defer { manager.unregisterAll() }
+        let binding = try JSONDecoder().decode(HotkeyBinding.self, from: Data(
+            #"{"keyCode":101,"modifierFlags":6912,"mediaKeyCode":17}"#.utf8))
+        try manager.register([.settings: binding])
+        #expect(manager.registrationErrors.isEmpty)
+        for state in [0xA00, 0xB00] {
+            let input = try #require(NSEvent.otherEvent(with: .systemDefined, location: .zero,
+                modifierFlags: [.command, .control, .option, .shift], timestamp: 0, windowNumber: 0,
+                context: nil, subtype: 8, data1: 17 << 16 | state, data2: -1))
+            let event = try #require(input.cgEvent)
+            event.post(tap: .cgSessionEventTap)
+        }
+        CFRunLoopRunInMode(.defaultMode, 0.1, false)
+        #expect(actions == [.settings])
+    }
+
     @Test("one system conflict preserves other actions and only active IDs dispatch")
     func partialFailure() throws {
         let registrar = TestHotkeyRegistrar()
@@ -64,13 +86,16 @@ import Testing
         #expect(actions == [.settings, .region, .ocrRegion])
     }
 
-    @Test("Carbon registers modified and Shift-only shortcuts, reports conflicts and dispatches", arguments: [UInt32(6912), UInt32(512)])
-    func nativeRegistration(modifiers: UInt32) throws {
+    @Test("Carbon registers single keys and modified function keys, reports conflicts and dispatches",
+          arguments: [HotkeyBinding(keyCode: 80, modifierFlags: 6912),
+                      HotkeyBinding(keyCode: 80, modifierFlags: 512),
+                      HotkeyBinding(keyCode: 80, modifierFlags: 0),
+                      HotkeyBinding(key: "F9", modifiers: ["option"])])
+    func nativeRegistration(binding: HotkeyBinding) throws {
         var actions: [HotkeyAction] = []
         let first = GlobalHotkeyManager(actionHandler: { actions.append($0) })
         let second = GlobalHotkeyManager(actionHandler: { _ in })
         defer { first.unregisterAll(); second.unregisterAll() }
-        let binding = HotkeyBinding(keyCode: 80, modifierFlags: modifiers)
         try first.register([.settings: binding])
         #expect(first.registrationErrors.isEmpty)
         try second.register([.imageHistory: binding])

@@ -14,6 +14,10 @@ let package = Package(
         .testTarget(name: "ShareXMacCoreTests", dependencies: [
             "ShareXMacCore",
             .product(name: "Testing", package: "swift-testing")
+        ]),
+        .testTarget(name: "ShareXMacTests", dependencies: [
+            "ShareXMac",
+            .product(name: "Testing", package: "swift-testing")
         ])
     ]
 )

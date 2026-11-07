@@ -11,8 +11,12 @@ struct HotkeySettingsView: View {
     var body: some View {
         Form {
             Section {
-                Text("Choose a row, then press a shortcut with Command, Control, Option, or Shift. Escape cancels recording; Delete clears it.")
+                Text("Choose a row, then press a single key or a combination with Command, Control, Option, or Shift. Escape cancels recording; Delete clears it.")
                     .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Function keys also work when your top row controls media or brightness. Record the keys exactly as you will use them. Allow Accessibility access if a media-key shortcut reports a permission error. Holding Fn records the standard function key instead.")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -75,6 +79,14 @@ struct HotkeySettingsView: View {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.red)
+                if settingsModel.settings.hotkeys[action]?.mediaKeyCode != nil {
+                    Button("Open Accessibility settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .controlSize(.small)
+                }
             }
         }
     }
@@ -134,7 +146,7 @@ private struct HotkeyRecorder: NSViewRepresentable {
 }
 
 @MainActor
-private final class ShortcutRecorderButton: NSButton {
+final class ShortcutRecorderButton: NSButton {
     var binding = HotkeyBinding()
     var onChange: ((HotkeyBinding) -> Void)?
     var onRecordingChange: ((Bool) -> Void)?
@@ -148,11 +160,10 @@ private final class ShortcutRecorderButton: NSButton {
         recording = true
         onRecordingChange?(true)
         // This monitor sees only this app's events; it consumes menu equivalents while recording.
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .systemDefined]) { [weak self] event in
             let consumed = MainActor.assumeIsolated {
                 guard let self, self.recording, self.window?.isKeyWindow == true else { return false }
-                self.keyDown(with: event)
-                return true
+                return self.record(event)
             }
             return consumed ? nil : event
         }
@@ -195,20 +206,30 @@ private final class ShortcutRecorderButton: NSButton {
 
     override func keyDown(with event: NSEvent) {
         guard recording else { super.keyDown(with: event); return }
-        if event.keyCode == 53 { finishRecording(); return }
+        _ = record(event)
+    }
+
+    @discardableResult
+    func record(_ event: NSEvent) -> Bool {
+        guard recording else { return false }
+        if event.type == .systemDefined {
+            guard let captured = HotkeyBinding(recording: event) else { return false }
+            finishRecording()
+            onChange?(captured)
+            return true
+        }
+        guard event.type == .keyDown else { return false }
+        if event.keyCode == 53 { finishRecording(); return true }
         let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
         let result: HotkeyBinding
         if (event.keyCode == 51 || event.keyCode == 117) && flags.isEmpty {
             result = HotkeyBinding()
         } else {
-            var carbon: UInt32 = 0
-            if flags.contains(.command) { carbon |= 256 }
-            if flags.contains(.shift) { carbon |= 512 }
-            if flags.contains(.option) { carbon |= 2048 }
-            if flags.contains(.control) { carbon |= 4096 }
-            result = HotkeyBinding(keyCode: UInt32(event.keyCode), modifierFlags: carbon)
+            guard let captured = HotkeyBinding(recording: event) else { return true }
+            result = captured
         }
         finishRecording()
         onChange?(result)
+        return true
     }
 }

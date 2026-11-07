@@ -13,7 +13,7 @@ Requires **macOS 13 or newer**. The universal app supports **Apple Silicon and I
 3. Open the app and choose your screenshot folder. Its controls live in the menu bar.
 4. Allow ShareX Mac in **System Settings → Privacy & Security → Screen Recording** (called **Screen & System Audio Recording** on some macOS versions), then reopen the app if requested. macOS requires this permission for still screenshots.
 
-The v1.0.0 download is ad-hoc signed and is not Apple-notarized. If macOS blocks the first launch, use **System Settings → Privacy & Security → Open Anyway** after attempting to open it.
+The app is ad-hoc signed and is not Apple-notarized. If macOS blocks the first launch, use **System Settings → Privacy & Security → Open Anyway** after attempting to open it.
 
 ## Default shortcuts
 
@@ -29,7 +29,7 @@ Global shortcuts work while the app is running. In **Settings → Hotkeys**, rec
 
 - Capture all connected displays in one image, a selected region, or a window chosen with the pointer.
 - Select across displays, including layouts with different Retina scales.
-- Save lossless PNG files to a chosen folder, with collision-safe filenames.
+- Save lossless PNG files in monthly subfolders of your chosen folder, such as `~/Pictures/ShareX/2026-11`, with collision-safe filenames. Folders follow the capture's local month and year and are created as needed; existing screenshots stay in place.
 - Keep full pixel resolution, or choose 75% or 50% dimensions for smaller files and clipboard images.
 - Copy each successful screenshot to the clipboard automatically, with an option to disable copying.
 - Include or hide the cursor and set a capture delay from 0 to 60 seconds with a cancellable countdown.
@@ -53,7 +53,7 @@ Global shortcuts work while the app is running. In **Settings → Hotkeys**, rec
 ### Shortcuts and settings
 
 - Configure global shortcuts for full-screen capture, region capture, window capture, OCR, Image History, and Settings.
-- Record combinations using Command, Control, Option, or Shift, including Shift-only shortcuts such as Shift-P.
+- Record single keys or combinations using Command, Control, Option, or Shift, including Option-F9. Playback, volume, and brightness keys can be recorded directly in media mode; these shortcuts may need Accessibility access, with a link to the setting shown if registration fails. Record the keys exactly as you will use them. Holding Fn (Globe) records the standard function key instead.
 - Detect duplicate assignments and display macOS registration errors; show configured shortcuts in the menu bar.
 - Save preferences and screenshot-folder access across restarts.
 - Check screenshot-folder and history-database status and open macOS permission settings.

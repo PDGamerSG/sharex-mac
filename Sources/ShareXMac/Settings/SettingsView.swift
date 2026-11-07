@@ -58,7 +58,7 @@ struct SettingsView: View {
                     LabeledContent("Capture delay", value: "\(model.settings.capture.delaySeconds.formatted()) seconds")
                 }
             } footer: {
-                Text("Screenshots are saved to your folder. Enable clipboard copy to paste them into other apps. The delay runs before the desktop is frozen.")
+                Text("Screenshots are saved in monthly folders inside your selected folder. Enable clipboard copy to paste them into other apps. The delay runs before the desktop is frozen.")
             }
             Section {
                 Picker("Screenshot resolution", selection: setting(\.capture.screenshotResolution)) {
@@ -86,6 +86,9 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Button("Choose Folder…", action: chooseFolder)
+                Text("A folder such as 2026-11 is created automatically for each month you capture screenshots.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("Image history database") {
                 Text(databasePath).textSelection(.enabled)

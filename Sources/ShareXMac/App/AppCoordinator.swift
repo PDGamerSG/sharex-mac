@@ -161,7 +161,7 @@ final class AppCoordinator: ObservableObject {
     func chooseScreenshotFolder() {
         let panel = NSOpenPanel()
         panel.title = "Choose Screenshot Folder"
-        panel.message = "Screenshots are saved here as PNG files. History stays on this Mac."
+        panel.message = "Screenshots are saved as PNG files in monthly folders here, such as 2026-11. History stays on this Mac."
         panel.prompt = "Use Folder"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false

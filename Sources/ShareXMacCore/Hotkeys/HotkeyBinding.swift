@@ -9,7 +9,7 @@ public enum HotkeyValidationError: Error, Equatable, LocalizedError {
         case let .duplicate(first, second):
             return "\(first.title) and \(second.title) use the same shortcut. Choose a different combination."
         case let .invalid(action):
-            return "Choose a key with Command, Control, Option, or Shift for \(action.title)."
+            return "Choose a key, optionally with Command, Control, Option, or Shift, for \(action.title)."
         }
     }
 }
@@ -18,12 +18,15 @@ public enum HotkeyValidationError: Error, Equatable, LocalizedError {
 public struct HotkeyBinding: Codable, Equatable, Sendable {
     public private(set) var keyCode: UInt32?
     public private(set) var modifierFlags: UInt32
+    /// The auxiliary key event sent by a top-row key in media mode, when recorded that way.
+    public private(set) var mediaKeyCode: UInt32?
     private var unknownKey: String?
     private var unknownModifiers: [String] = []
 
     public var key: String {
         get { keyCode.map { Self.keyNames[$0] ?? "Key \($0)" } ?? unknownKey ?? "" }
         set {
+            mediaKeyCode = nil
             keyCode = Self.code(for: newValue)
             unknownKey = keyCode == nil && !newValue.isEmpty ? newValue : nil
         }
@@ -60,7 +63,12 @@ public struct HotkeyBinding: Codable, Equatable, Sendable {
         self.modifierFlags = modifierFlags
     }
 
-    public var isEmpty: Bool { keyCode == nil && unknownKey == nil && modifierFlags == 0 && unknownModifiers.isEmpty }
+    init(keyCode: UInt32, modifierFlags: UInt32, mediaKeyCode: UInt32) {
+        self.init(keyCode: keyCode, modifierFlags: modifierFlags)
+        self.mediaKeyCode = mediaKeyCode
+    }
+
+    public var isEmpty: Bool { keyCode == nil && unknownKey == nil && modifierFlags == 0 && unknownModifiers.isEmpty && mediaKeyCode == nil }
 
     public var displayName: String {
         guard !isEmpty else { return "Record shortcut" }
@@ -76,7 +84,7 @@ public struct HotkeyBinding: Codable, Equatable, Sendable {
             guard let code = binding.keyCode, code <= 127,
                   ![54, 55, 56, 57, 58, 59, 60, 61, 62, 63].contains(code),
                   binding.modifierFlags & ~UInt32(6912) == 0,
-                  binding.modifierFlags != 0,
+                  binding.mediaKeyCode.map({ Self.functionKeyCode(forMediaKeyCode: $0) == code }) ?? true,
                   binding.unknownModifiers.isEmpty else {
                 throw HotkeyValidationError.invalid(action)
             }
@@ -86,14 +94,15 @@ public struct HotkeyBinding: Codable, Equatable, Sendable {
         }
     }
 
-    private enum CodingKeys: String, CodingKey { case keyCode, modifierFlags, key, modifiers }
+    private enum CodingKeys: String, CodingKey { case keyCode, modifierFlags, mediaKeyCode, key, modifiers }
 
     public init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        if values.contains(.keyCode) || values.contains(.modifierFlags) {
+        if values.contains(.keyCode) || values.contains(.modifierFlags) || values.contains(.mediaKeyCode) {
             self.init()
             keyCode = try values.decodeIfPresent(UInt32.self, forKey: .keyCode)
             modifierFlags = try values.decodeIfPresent(UInt32.self, forKey: .modifierFlags) ?? 0
+            mediaKeyCode = try values.decodeIfPresent(UInt32.self, forKey: .mediaKeyCode)
             unknownKey = try values.decodeIfPresent(String.self, forKey: .key)
             if keyCode != nil || unknownKey?.isEmpty == true { unknownKey = nil }
             // Preserve malformed legacy values on a round trip so validation still rejects them.
@@ -108,11 +117,18 @@ public struct HotkeyBinding: Codable, Equatable, Sendable {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encodeIfPresent(keyCode, forKey: .keyCode)
         try values.encode(modifierFlags, forKey: .modifierFlags)
+        try values.encodeIfPresent(mediaKeyCode, forKey: .mediaKeyCode)
         try values.encodeIfPresent(unknownKey, forKey: .key)
         if !unknownModifiers.isEmpty { try values.encode(unknownModifiers, forKey: .modifiers) }
     }
 
     private static let modifierNames: [(flag: UInt32, name: String)] = [(256, "command"), (512, "shift"), (2048, "option"), (4096, "control")]
+
+    static func functionKeyCode(forMediaKeyCode code: UInt32) -> UInt32? {
+        // Apple top-row brightness, playback and volume keys (NX_KEYTYPE_*).
+        [0: 111, 1: 103, 2: 120, 3: 122, 7: 109,
+         16: 100, 17: 101, 18: 98, 19: 101, 20: 98][code]
+    }
 
     private static func code(for key: String) -> UInt32? {
         let name = key.lowercased()
