@@ -88,7 +88,8 @@ public final class CaptureCoordinator {
             try Task.checkCancellation()
             let date = now()
             let url = try await writeImage(image, date)
-            if options.copyToClipboard {
+            // OCR copies its recognized text later; a background PNG copy could overwrite it.
+            if options.copyToClipboard && mode != .ocrRegion {
                 // Copy the canonical PNG once. Avoiding a second ImageIO encode
                 // keeps capture CPU, memory, and energy use low while preserving
                 // the exact bytes written to disk.

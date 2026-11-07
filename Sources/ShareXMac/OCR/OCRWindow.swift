@@ -37,7 +37,7 @@ final class OCRWindow: NSWindowController, NSWindowDelegate {
 }
 
 @MainActor
-private final class OCRResultModel: ObservableObject {
+final class OCRResultModel: ObservableObject {
     @Published var text = ""
     @Published var singleLine = false
     @Published private(set) var isLoading = false
@@ -45,14 +45,16 @@ private final class OCRResultModel: ObservableObject {
     private let image: CGImage
     private let service: VisionOCRService
     private let settings: OCRSettings
+    private let pasteboard: NSPasteboard
     private var task: Task<Void, Never>?
     private var requestID = UUID()
     private var hasStarted = false
 
-    init(image: CGImage, service: VisionOCRService, settings: OCRSettings) {
+    init(image: CGImage, service: VisionOCRService, settings: OCRSettings, pasteboard: NSPasteboard = .general) {
         self.image = image
         self.service = service
         self.settings = settings
+        self.pasteboard = pasteboard
     }
 
     var displayedText: String {
@@ -81,6 +83,7 @@ private final class OCRResultModel: ObservableObject {
                 let text = try await service.recognize(image: image, settings: settings)
                 guard requestID == id else { return }
                 self.text = text
+                if !displayedText.isEmpty { copy() }
             } catch is CancellationError {
                 guard requestID == id else { return }
             } catch {
@@ -99,8 +102,8 @@ private final class OCRResultModel: ObservableObject {
     }
 
     func copy() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(displayedText, forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(displayedText, forType: .string)
     }
 }
 

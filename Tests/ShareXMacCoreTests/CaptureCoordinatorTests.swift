@@ -160,7 +160,7 @@ struct CaptureCoordinatorTests {
         #expect(record.containingFolderURL.lastPathComponent == "2026-11")
         #expect(record.containingFolderURL.deletingLastPathComponent().path == directory.path)
         #expect(FileManager.default.fileExists(atPath: record.path))
-        #expect(copiedFile?.path == record.path)
+        #expect(copiedFile?.path == (mode == .ocrRegion ? nil : record.path))
         #expect(record.width == expectedSize && record.height == expectedSize)
         #expect(record.captureSettings?.screenshotResolution == (mode == .ocrRegion ? .full : .half))
         #expect(confirmations == [record])

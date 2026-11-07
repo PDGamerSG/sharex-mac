@@ -38,6 +38,7 @@ Global shortcuts work while the app is running. In **Settings → Hotkeys**, rec
 ### Offline OCR
 
 - Recognize text in a selected region or a screenshot from Image History using Apple Vision.
+- Automatically copy successful OCR results to the clipboard, including retries. Empty results and recognition errors preserve the clipboard; OCR source images do not replace the recognized text.
 - Keep OCR captures at full resolution regardless of screenshot output size.
 - Edit the result, switch between multiline and single-line text, retry recognition, and copy the text.
 - Use automatic language detection or select supported languages, enable language correction, and choose a recognition scale from 1× to 4×.
