@@ -6,7 +6,7 @@
 
 **Architecture:** The manifest selects macOS or Linux targets at evaluation time. Linux behavior lives in a Foundation-only `ShareXLinuxCore` library, a small C GTK bridge, and a Swift controller. External desktop commands are invoked with structured `Process` arguments. Linux tests cover models, process command construction, PNG metadata, persistence, atomic file naming, and history without requiring a graphical session.
 
-**Tech Stack:** Swift 6, Swift Package Manager, Foundation, SQLite3, GTK 3 C API, `grim`, `slurp`, `gnome-screenshot`, ImageMagick `import`, `tesseract`, `wl-copy`, `xclip`, `xbindkeys`, XDG Base Directory conventions.
+**Tech Stack:** Swift 6, Swift Package Manager, Foundation, SQLite3, Python GTK 3 via GObject Introspection, `grim`, `slurp`, `gnome-screenshot`, ImageMagick `import`, `tesseract`, `wl-copy`, `xclip`, Keybinder3, the freedesktop Screenshot and GlobalShortcuts portals, and XDG Base Directory conventions.
 
 **Spec:** `docs/superpowers/specs/2026-11-24-sharex-linux-port-design.md`
 
@@ -127,19 +127,18 @@
 
 **Files:**
 - Create: `Sources/ShareXLinuxCore/LinuxHotkeyRegistrar.swift`
-- Create: `Sources/ShareXLinuxGTK/include/sharex_gtk.h`
-- Create: `Sources/ShareXLinuxGTK/sharex_gtk.c`
-- Create: `Sources/ShareXLinuxGTK/module.modulemap`
+- Create: `Sources/ShareXLinux/Desktop/sharex_ui.py`
+- Create: `Sources/ShareXLinux/Desktop/shortcuts.py`
 - Create: `Tests/ShareXLinuxTests/LinuxHotkeyRegistrarTests.swift`
 
 **Interfaces:**
 - `LinuxHotkeyRegistrar.register(_:executable:) throws`, `stop()`, `status`.
 - C bridge callbacks use `sharex_gtk_run`, `sharex_gtk_set_status`, `sharex_gtk_show_text`, `sharex_gtk_show_settings`, and `sharex_gtk_show_history`.
 
-- [ ] Write failing registrar tests for generated xbindkeys syntax, cleanup, and Wayland capability guidance.
+- [ ] Write registrar compatibility tests for native X11/Wayland capability guidance and legacy configuration formatting.
 - [ ] Run focused tests and verify failure.
-- [ ] Implement the private xbindkeys process and safe config file lifecycle.
-- [ ] Implement the GTK window, settings dialog, history dialog, and editable OCR result dialog with stable action callbacks.
+- [ ] Implement the compatibility capability shim and use the packaged GTK adapter for native X11 and Wayland shortcuts.
+- [ ] Implement the GTK window, settings dialog, history dialog, and editable OCR result dialog with stable backend action callbacks.
 - [ ] Run Linux tests and compile the GTK C target on a Linux toolchain.
 
 ### Task 7: Wire the Linux controller and executable

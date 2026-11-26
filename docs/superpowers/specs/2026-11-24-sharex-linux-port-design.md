@@ -13,16 +13,16 @@ The macOS target remains the existing native AppKit, ScreenCaptureKit, Vision, C
 
 The Linux target supports Ubuntu-class distributions with GTK 3 development/runtime packages. It detects Wayland and X11 at runtime. Wayland capture uses `grim` and `slurp`, while X11 capture uses `gnome-screenshot` when available and falls back to ImageMagick `import`. Window capture on X11 uses `xdotool` plus `import`. The app reports missing tools with an actionable setup message.
 
-The initial Linux release does not include video recording, uploads, annotation, workflows, or network services. It also does not fabricate a universal Wayland global-hotkey API. X11 hotkeys are registered through `xbindkeys` when installed. On Wayland, the app exposes its actions through the GTK window and records the shortcut instructions needed for the compositor's global shortcut settings.
+The initial Linux release does not include video recording, uploads, annotation, workflows, or network services. X11 hotkeys use Keybinder3 through the GTK adapter. Wayland uses the freedesktop GlobalShortcuts portal when available and reports compositor setup guidance when it is not.
 
 ## Package architecture
 
 `Package.swift` selects platform-specific targets at manifest-evaluation time.
 
 - On macOS it keeps the existing `ShareXMacCore`, `ShareXMac`, and test targets unchanged.
-- On Linux it exposes `ShareXLinuxCore`, `ShareXLinux`, `ShareXLinuxGTK`, and Linux tests.
+- On Linux it exposes `ShareXLinuxCore`, `ShareXLinux`, and Linux tests. The GTK frontend is packaged as Python resources so the Swift core remains display-independent and testable.
 - Linux uses a `CSQLite` system-library target linked with `sqlite3`.
-- `ShareXLinuxGTK` is a small C bridge linked with GTK 3. The bridge owns GTK object lifetimes and emits action callbacks into Swift, keeping the Linux application logic testable without requiring a display in unit tests.
+- The GTK frontend owns GTK object lifetimes and emits backend actions through the executable's structured CLI. The Linux core remains display-independent and testable without requiring a display.
 
 ## Linux core behavior
 
@@ -37,7 +37,7 @@ The initial Linux release does not include video recording, uploads, annotation,
 - `LinuxCaptureFileWriter` moves a completed temporary file into a monthly directory with collision-safe names.
 - `LinuxOCRService` invokes `tesseract` with a language list discovered from `tesseract --list-langs`. It returns text through stdout and never sends images over the network.
 - `LinuxClipboardService` uses `wl-copy` on Wayland and `xclip` on X11. It preserves the existing clipboard when a required helper is missing or a command fails.
-- `LinuxHotkeyRegistrar` writes a private `xbindkeys` configuration and owns the helper process on X11. Wayland returns a capability status with compositor setup guidance.
+- `LinuxHotkeyRegistrar` remains a compatibility capability shim. The packaged GTK adapter uses Keybinder3 on X11 and the GlobalShortcuts portal on Wayland, with compositor setup guidance when the portal is unavailable.
 - All process execution has exit-code, stdout, stderr, cancellation, and missing-executable errors.
 
 ## GTK application

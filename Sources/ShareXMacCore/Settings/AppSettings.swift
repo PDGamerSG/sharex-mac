@@ -1,16 +1,5 @@
 import Foundation
-
-public struct OCRSettings: Codable, Equatable, Sendable {
-    public var recognitionScale: Double
-    public var languages: [String]
-    public var usesLanguageCorrection: Bool
-
-    public init(recognitionScale: Double = 1, languages: [String] = [], usesLanguageCorrection: Bool = true) {
-        self.recognitionScale = recognitionScale
-        self.languages = languages
-        self.usesLanguageCorrection = usesLanguageCorrection
-    }
-}
+import ShareXCore
 
 public struct AppSettings: Codable, Equatable, Sendable {
     public var capture: CaptureSettings

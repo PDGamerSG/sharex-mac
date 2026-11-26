@@ -6,6 +6,8 @@ dist/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 *.DS_Store
+__pycache__/
+*.pyc
 
 # Local planning/runtime artifacts
 .superpowers/

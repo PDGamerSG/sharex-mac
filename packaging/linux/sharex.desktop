@@ -1,0 +1,28 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ShareX Linux
+Comment=Local screenshots and offline text recognition
+Exec=@EXEC@
+TryExec=@EXEC@
+Terminal=false
+Categories=Graphics;Utility;
+Keywords=screenshot;capture;OCR;text;
+StartupNotify=true
+Actions=fullscreen;region;window;ocr;
+
+[Desktop Action fullscreen]
+Name=Capture Full Screen
+Exec=@EXEC@ --action fullscreen
+
+[Desktop Action region]
+Name=Capture Region
+Exec=@EXEC@ --action region
+
+[Desktop Action window]
+Name=Capture Window
+Exec=@EXEC@ --action window
+
+[Desktop Action ocr]
+Name=Recognize Text in Region
+Exec=@EXEC@ --action ocrRegion

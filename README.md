@@ -2,14 +2,16 @@
 
 ShareX Mac is an unofficial, native macOS menu-bar app for screenshots and offline text recognition. Capture a screen, region, or window, copy the image or recognized text, and find saved screenshots in local image history. Screenshots and OCR stay on your Mac.
 
-[Download the latest release](https://github.com/PDGamerSG/sharex-mac/releases/latest) · [Download the app ZIP](https://github.com/PDGamerSG/sharex-mac/releases/latest/download/ShareXMac-universal.zip)
+The package also includes **ShareX Linux**, a GTK desktop variant with the same local screenshot, OCR, clipboard, history, settings, and shortcut workflow. macOS and Linux keep separate settings and history locations.
+
+[Download the latest release](https://github.com/PDGamerSG/sharex-mac/releases/latest)
 
 ## Install
 
 Requires **macOS 13 or newer**. The universal app supports **Apple Silicon and Intel** Macs.
 
-1. Download `ShareXMac-universal.zip` from [Releases](https://github.com/PDGamerSG/sharex-mac/releases).
-2. Extract the ZIP and move **ShareX Mac.app** to **Applications**. Quit an older running copy before replacing it.
+1. Download `ShareXMac.dmg` from [Releases](https://github.com/PDGamerSG/sharex-mac/releases). Versions through 1.0.3 provide a ZIP.
+2. Open the DMG or extract the ZIP, then move **ShareX Mac.app** to **Applications**. Quit an older running copy before replacing it.
 3. Open the app and choose your screenshot folder. Its controls live in the menu bar.
 4. Allow ShareX Mac in **System Settings → Privacy & Security → Screen Recording** (called **Screen & System Audio Recording** on some macOS versions), then reopen the app if requested. macOS requires this permission for still screenshots.
 
@@ -73,3 +75,26 @@ swift test --build-system native
 Build the executable with `swift build --build-system native --product ShareXMac`. To stage a signed or ad-hoc universal bundle, run `scripts/build-release.sh --dry-run` first, then run it on a machine with the required macOS SDK, `iconutil`, signing identity, and (for notarization) a configured `notarytool` keychain profile. The script builds arm64 and x86_64 separately using macOS 13 triples and combines them with `lipo`.
 
 Manual acceptance checks are listed in [docs/testing/macOS-manual-matrix.md](docs/testing/macOS-manual-matrix.md).
+
+## Linux
+
+ShareX Linux targets Ubuntu-class distributions with GTK 3 and supports both Wayland and X11 sessions. Wayland capture uses `grim` and `slurp` when available and falls back to the freedesktop Screenshot portal. X11 capture uses `maim`, `gnome-screenshot`, or ImageMagick. Offline OCR uses Tesseract. Global shortcuts use Keybinder3 on X11 and the freedesktop GlobalShortcuts portal on Wayland when the desktop provides it.
+
+Install the runtime packages for Ubuntu with:
+
+```sh
+sudo apt install python3-gi gir1.2-gtk-3.0 gir1.2-keybinder-3.0 tesseract-ocr wl-clipboard xclip maim slop grim slurp xdotool xdg-desktop-portal xdg-desktop-portal-gtk
+```
+
+The screenshot helpers are selected at runtime, so a Wayland installation can omit the X11 helpers and an X11 installation can omit the Wayland helpers. Install additional Tesseract language packages such as `tesseract-ocr-fra` when needed. Fedora package names are listed in `scripts/build-linux.sh --check-dependencies`.
+
+Build and stage the Linux DEB on a Linux machine with Swift 6:
+
+```sh
+scripts/build-linux.sh --check-dependencies
+scripts/build-linux.sh --release
+```
+
+The release output contains one `ShareXLinux.deb` package. Install it with `sudo apt install ./dist/sharex-linux/ShareXLinux.deb`. The package installs the executable under `/usr/lib/sharex-linux` and registers the desktop launcher. The existing staged bundle and user-local installer remain available for development environments.
+
+Linux settings, history, screenshots, and autostart use the XDG locations documented in [docs/testing/linux-manual-matrix.md](docs/testing/linux-manual-matrix.md). Manual acceptance checks cover Wayland, X11, OCR, clipboard, history, settings persistence, shortcuts, and missing helper messages.

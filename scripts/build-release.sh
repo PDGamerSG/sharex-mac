@@ -28,6 +28,7 @@ cd "$project_root"
 build_root="$project_root/.build/universal-release"
 bundle="$output_dir/ShareX Mac.app"
 archive="$output_dir/ShareXMac-universal.zip"
+dmg="$output_dir/ShareXMac.dmg"
 
 run() {
     if $dry_run; then printf '%q ' "$@"; printf '\n'; else "$@"; fi
@@ -41,7 +42,8 @@ done
 
 # Stage a complete bundle before replacing any prior build in the output folder.
 staging="$output_dir/.ShareXMac-staging-$$.app"
-trap 'rm -rf "$staging"' EXIT
+dmg_staging="$output_dir/.ShareXMac-dmg-staging-$$"
+trap 'rm -rf "$staging" "$dmg_staging"' EXIT
 run mkdir -p "$staging/Contents/MacOS" "$staging/Contents/Resources"
 run cp Resources/Info.plist "$staging/Contents/Info.plist"
 run cp LICENSE NOTICE "$staging/Contents/Resources/"
@@ -78,10 +80,14 @@ if ! $dry_run; then
 fi
 run mv "$staging" "$bundle"
 run ditto -c -k --sequesterRsrc --keepParent "$bundle" "$archive"
+run mkdir -p "$dmg_staging"
+run cp -R "$bundle" "$dmg_staging/"
+run ln -s /Applications "$dmg_staging/Applications"
+run hdiutil create -volname "ShareX Mac" -srcfolder "$dmg_staging" -ov -format UDZO "$dmg"
+run hdiutil verify "$dmg"
 if [[ -n "$notary_profile" ]]; then
-    run xcrun notarytool submit "$archive" --keychain-profile "$notary_profile" --wait
-    run xcrun stapler staple "$bundle"
-    run xcrun stapler validate "$bundle"
-    run ditto -c -k --sequesterRsrc --keepParent "$bundle" "$archive"
+    run xcrun notarytool submit "$dmg" --keychain-profile "$notary_profile" --wait
+    run xcrun stapler staple "$dmg"
+    run xcrun stapler validate "$dmg"
 fi
-printf 'App: %s\nArchive: %s\n' "$bundle" "$archive"
+printf 'App: %s\nDMG: %s\nArchive: %s\n' "$bundle" "$dmg" "$archive"

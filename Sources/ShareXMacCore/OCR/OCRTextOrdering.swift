@@ -12,7 +12,7 @@ public struct OCRTextLine: Equatable, Sendable {
     }
 }
 
-public enum OCRTextOrdering {
+extension OCRTextOrdering {
     public static func text(from observations: [OCRTextLine], singleLine: Bool = false) -> String {
         let lines = observations.compactMap { observation -> OCRTextLine? in
             let text = observation.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -45,9 +45,5 @@ public enum OCRTextOrdering {
             }.map(\.text).joined(separator: " ")
         }.joined(separator: "\n")
         return singleLine ? self.singleLine(text) : text
-    }
-
-    public static func singleLine(_ text: String) -> String {
-        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 }

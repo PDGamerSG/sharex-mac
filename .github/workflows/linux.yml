@@ -1,0 +1,48 @@
+name: Linux
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.0.3"
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libsqlite3-dev pkg-config dpkg-dev python3-gi gir1.2-gtk-3.0 gir1.2-keybinder-3.0 \
+            tesseract-ocr wl-clipboard xclip maim slop grim slurp xdotool \
+            xdg-desktop-portal xdg-desktop-portal-gtk xvfb
+      - name: Test Swift targets
+        run: swift test --disable-sandbox
+      - name: Test GTK adapters
+        run: |
+          python3 -m compileall -q Sources/ShareXLinux/Desktop
+          python3 -m unittest discover -s Tests/ShareXLinuxDesktopTests -p 'test_*.py'
+      - name: Build release bundle
+        run: scripts/build-linux.sh --release --skip-tests --output "$RUNNER_TEMP/sharex-linux"
+      - name: Test Debian installer
+        run: |
+          python3 -B -m unittest discover -s Tests/ReleasePackagingTests -p 'test_*.py'
+          package="$RUNNER_TEMP/sharex-linux/ShareXLinux.deb"
+          test "$(find "$(dirname "$package")" -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 1
+          sudo apt-get install -y "$package"
+          config="$(mktemp -d)"
+          export XDG_CONFIG_HOME="$config/config" XDG_DATA_HOME="$config/data"
+          /usr/lib/sharex-linux/ShareXLinux --backend settings | python3 -c 'import json, sys; assert "capture" in json.load(sys.stdin)'
+          /usr/lib/sharex-linux/ShareXLinux --backend history | python3 -c 'import json, sys; assert json.load(sys.stdin) == []'
+      - name: Upload DEB artifact
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharex-linux-release
+          path: ${{ runner.temp }}/sharex-linux/ShareXLinux.deb
+          if-no-files-found: error

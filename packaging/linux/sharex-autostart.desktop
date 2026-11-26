@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ShareX Linux
+Comment=Start ShareX Linux with the desktop session
+Exec=@EXEC@ --autostart
+TryExec=@EXEC@
+Terminal=false
+OnlyShowIn=GNOME;KDE;XFCE;Cinnamon;MATE;LXQt;Pantheon;Unity;
+X-GNOME-Autostart-enabled=true

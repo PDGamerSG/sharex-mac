@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test macOS release
+        run: scripts/build-release.sh --output "$RUNNER_TEMP/sharex-macos"
+      - name: Verify the single DMG artifact
+        run: test "$(find "$RUNNER_TEMP/sharex-macos" -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharex-macos-release
+          path: ${{ runner.temp }}/sharex-macos/ShareXMac.dmg
+          if-no-files-found: error
+
+  linux:
+    uses: ./.github/workflows/linux.yml
+
+  publish:
+    needs: [macos, linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sharex-*-release
+          path: release
+          merge-multiple: true
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/ShareXMac.dmg
+            release/ShareXLinux.deb
+          fail_on_unmatched_files: true
