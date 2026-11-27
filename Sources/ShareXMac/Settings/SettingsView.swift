@@ -153,7 +153,7 @@ struct SettingsView: View {
             Section("Launch") {
                 Toggle("Launch at login", isOn: Binding(
                     get: { loginStatus == .enabled || loginStatus == .requiresApproval },
-                    set: setLaunchAtLogin
+                    set: { enabled in setLaunchAtLogin(enabled) }
                 ))
                 if loginStatus == .requiresApproval {
                     Text("Allow ShareX in System Settings → General → Login Items to finish enabling launch at login.")

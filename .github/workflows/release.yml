@@ -30,7 +30,9 @@ jobs:
           trap 'hdiutil detach "$mountpoint"' EXIT
           test "$(readlink "$mountpoint/Applications")" = /Applications
           codesign --verify --strict "$mountpoint/ShareX Mac.app"
-          xcrun lipo -verify_arch arm64 x86_64 "$mountpoint/ShareX Mac.app/Contents/MacOS/ShareXMac"
+          binary="$mountpoint/ShareX Mac.app/Contents/MacOS/ShareXMac"
+          xcrun lipo "$binary" -verify_arch arm64
+          xcrun lipo "$binary" -verify_arch x86_64
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
