@@ -4,17 +4,21 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   macos:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Check that the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/')
         run: test "$GITHUB_REF_NAME" = "v$(scripts/release-version.sh)"
+      - name: Print the Swift toolchain version
+        run: swift --version
       - name: Build and test macOS release
         run: scripts/build-release.sh --output "$RUNNER_TEMP/sharex-macos"
       - name: Verify the single DMG artifact
@@ -74,6 +78,7 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: github.event_name == 'push'
     needs: [macos, linux, windows]
     runs-on: ubuntu-24.04
     permissions:
