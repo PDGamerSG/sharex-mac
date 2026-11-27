@@ -1,4 +1,5 @@
 import os
+import re
 import stat
 import subprocess
 import tempfile
@@ -63,6 +64,8 @@ class ReleasePackagingTests(unittest.TestCase):
         self.assertIn("package-linux-deb.sh", linux_script)
         self.assertIn("ShareXMac.dmg", workflow)
         self.assertIn("ShareXLinux.deb", workflow)
+        release_assets = re.findall(r"^\s+release/(\S+)$", workflow, re.MULTILINE)
+        self.assertEqual(sorted(Path(asset).suffix for asset in release_assets), [".deb", ".dmg", ".exe"])
 
 
 def shutil_which(command):

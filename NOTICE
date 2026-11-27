@@ -5,6 +5,8 @@ Upstream project: https://github.com/ShareX/ShareX
 Upstream license: GNU General Public License version 3 (see LICENSE).
 
 The native Swift implementation and its icon were authored for this repository.
-No Windows binaries, upload services, or upstream ShareX artwork are bundled.
+The native apps contain no upload services or upstream ShareX artwork.
+GitHub Releases includes the official ShareX for Windows installer as a
+separate, unmodified download, with links to its corresponding source and license.
 ShareX names belong to their respective owners; this project is not endorsed
 by the upstream ShareX team.

@@ -13,10 +13,20 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Check that the tag matches the app version
+        run: test "$GITHUB_REF_NAME" = "v$(scripts/release-version.sh)"
       - name: Build and test macOS release
         run: scripts/build-release.sh --output "$RUNNER_TEMP/sharex-macos"
       - name: Verify the single DMG artifact
-        run: test "$(find "$RUNNER_TEMP/sharex-macos" -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
+        run: |
+          folder="$RUNNER_TEMP/sharex-macos"
+          test "$(find "$folder" -maxdepth 1 -type f -name '*.dmg' | wc -l)" -eq 1
+          mountpoint="$(mktemp -d)"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "$folder/ShareXMac.dmg"
+          trap 'hdiutil detach "$mountpoint"' EXIT
+          test "$(readlink "$mountpoint/Applications")" = /Applications
+          codesign --verify --strict "$mountpoint/ShareX Mac.app"
+          xcrun lipo -verify_arch arm64 x86_64 "$mountpoint/ShareX Mac.app/Contents/MacOS/ShareXMac"
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
@@ -27,8 +37,44 @@ jobs:
   linux:
     uses: ./.github/workflows/linux.yml
 
+  windows:
+    runs-on: windows-2025
+    env:
+      INSTALLER: ShareX-22.5.0-setup-x64.exe
+      INSTALLER_SHA256: 0ac699fde6d29c53ec135864509a7b802fa2e9004484f34165095e5a744d4c0f
+    steps:
+      - name: Download and verify the official ShareX installer
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP $env:INSTALLER
+          $url = "https://github.com/ShareX/ShareX/releases/download/v22.5.0/$env:INSTALLER"
+          curl.exe --fail --location --retry 3 --output $installer $url
+          if ($LASTEXITCODE -ne 0) { throw "Could not download the upstream Windows installer." }
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $env:INSTALLER_SHA256) {
+            throw "The Windows installer SHA-256 differs from the upstream release checksum."
+          }
+      - name: Test installing ShareX on Windows
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP $env:INSTALLER
+          $destination = Join-Path $env:RUNNER_TEMP "sharex-windows-install"
+          $log = Join-Path $env:RUNNER_TEMP "sharex-windows-install.log"
+          $options = '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NORUN /TASKS="" /DIR="{0}" /LOG="{1}"' -f $destination, $log
+          $setup = Start-Process -FilePath $installer -ArgumentList $options -Wait -PassThru
+          if ($setup.ExitCode -ne 0 -or -not (Test-Path (Join-Path $destination "ShareX.exe"))) {
+            if (Test-Path $log) { Get-Content $log -Tail 40 }
+            throw "ShareX installation failed (exit code $($setup.ExitCode))."
+          }
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharex-windows-release
+          path: ${{ runner.temp }}/${{ env.INSTALLER }}
+          compression-level: 0
+          if-no-files-found: error
+
   publish:
-    needs: [macos, linux]
+    needs: [macos, linux, windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -42,7 +88,19 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          name: ShareX ${{ github.ref_name }}
+          body: |
+            | Platform | Download |
+            | --- | --- |
+            | macOS 13 or later (Apple Silicon and Intel) | `ShareXMac.dmg` |
+            | Ubuntu 24.04 (x86-64) | `ShareXLinux.deb` |
+            | Windows (x64) | `ShareX-22.5.0-setup-x64.exe` |
+
+            The macOS and Linux apps come from this repository. The Windows download is the unmodified official ShareX 22.5.0 installer from the ShareX team.
+
+            [Upstream Windows release and SHA-256](https://github.com/ShareX/ShareX/releases/tag/v22.5.0) · [Corresponding Windows source](https://github.com/ShareX/ShareX/tree/v22.5.0) · [Windows license](https://github.com/ShareX/ShareX/blob/v22.5.0/LICENSE.txt)
           files: |
             release/ShareXMac.dmg
             release/ShareXLinux.deb
+            release/ShareX-22.5.0-setup-x64.exe
           fail_on_unmatched_files: true

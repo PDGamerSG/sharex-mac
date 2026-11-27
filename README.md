@@ -6,6 +6,12 @@ The package also includes **ShareX Linux**, a GTK desktop variant with the same 
 
 [Download the latest release](https://github.com/PDGamerSG/sharex-mac/releases/latest)
 
+| Platform | Installer |
+| --- | --- |
+| macOS (Apple Silicon and Intel) | `ShareXMac.dmg` |
+| Ubuntu 24.04 (x86-64) | `ShareXLinux.deb` |
+| Windows (x64) | `ShareX-22.5.0-setup-x64.exe`, the [official ShareX Windows installer](https://github.com/ShareX/ShareX/releases/tag/v22.5.0) |
+
 ## Install
 
 Requires **macOS 13 or newer**. The universal app supports **Apple Silicon and Intel** Macs.
